@@ -1,0 +1,1 @@
+import React from'react';import{Text,StyleSheet}from'react-native';import{colors,spacing}from'../theme';export function SectionTitle({children}:{children:React.ReactNode}){return <Text style={styles.title}>{children}</Text>}const styles=StyleSheet.create({title:{fontSize:13,fontWeight:'800',color:colors.ink,marginTop:spacing.lg,marginBottom:spacing.sm}});

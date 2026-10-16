@@ -1,0 +1,2 @@
+import { redact } from './redaction';
+describe('log redaction',()=>{test('redacts tokens, full card numbers and notification bodies',()=>{const result=redact('token=secret card=6222021234567890 body=付款80元');expect(result).toContain('token=[REDACTED]');expect(result).toContain('card=************7890');expect(result).toContain('body=[REDACTED]');expect(result).not.toContain('secret');expect(result).not.toContain('付款80元');});});

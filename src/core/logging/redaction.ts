@@ -1,0 +1,1 @@
+export function redact(input:string){return input.replace(/token\s*=\s*[^\s]+/gi,'token=[REDACTED]').replace(/card\s*=\s*\d{8,19}/gi,(value)=>value.replace(/\d(?=\d{4})/g,'*')).replace(/body\s*=\s*[^\s]+/gi,'body=[REDACTED]');}

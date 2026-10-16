@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "严格记账",
+    "slug": "strict-ledger",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "strictledger",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "com.strictledger.app",
+      "versionCode": 1
+    }
+  }
+}
