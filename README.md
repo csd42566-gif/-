@@ -1,4 +1,4 @@
-# 严格记账 Android MVP
+# 神罚 Android MVP
 
 第一版采用 Expo + React Native + TypeScript，先把核心记账闭环跑通：
 
