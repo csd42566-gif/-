@@ -10,7 +10,7 @@ export type BudgetGroup='essential'|'flexible';
 export type RepaymentMode='minimum'|'full';
 export interface Account{id:string;name:string;kind:AccountKind;balance:number}
 export interface Transaction{id:string;type:TransactionType;amount:number;accountId:string;toAccountId?:string;category?:string;budgetGroup?:BudgetGroup;note?:string;occurredAt:string;source:TransactionSource;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number;externalKey?:string}
-export interface PendingTransaction{ id:string;type:'income'|'expense';amount:number;accountId?:string;category?:string;note?:string;occurredAt:string;source:Exclude<TransactionSource,'manual'>;confidence:number;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number }
+export interface PendingTransaction{ id:string;type:'income'|'expense';amount:number;accountId?:string;accountLabel?:string;category?:string;note?:string;occurredAt:string;source:Exclude<TransactionSource,'manual'>;confidence:number;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number }
 export interface InstallmentPeriod{number:number;dueDate:string;principalAmount:number;interestAmount:number;totalAmount:number}
 export interface InstallmentPlan{remainingPrincipal:number;totalPeriods:number;paidPeriods:number;annualRate?:number;repaymentType:'annuity'|'equal-principal'|'fixed-payment'|'manual';periods:InstallmentPeriod[]}
 export interface Debt{id:string;name:string;amount:number;dueDate:string;minimumPayment?:number;kind:'credit'|'bill'|'loan'|'personal';repaymentMode:RepaymentMode;installment?:InstallmentPlan}
@@ -49,6 +49,7 @@ export interface Settings{
   statusServiceEnabled:boolean;
   reducedMotion:boolean;
   accountDisplayOrder:string[];
+  accountMapping:Record<string,string>;
   work:WorkProfile;
 }
 export interface LedgerState{accounts:Account[];transactions:Transaction[];pendingTransactions:PendingTransaction[];debts:Debt[];goal:Goal|null;settings:Settings;attendance?:AttendanceRecord[]}
@@ -80,5 +81,6 @@ export const defaultSettings: Settings = {
   statusServiceEnabled: false,
   reducedMotion: false,
   accountDisplayOrder: [],
+  accountMapping: {},
   work: defaultWorkProfile,
 };

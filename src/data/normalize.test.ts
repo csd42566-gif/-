@@ -25,6 +25,7 @@ describe('ledger state migration', () => {
         repaymentReminders: expect.any(Boolean),
         reducedMotion: expect.any(Boolean),
         providerIconStyle: 'logo',
+        accountMapping: {},
       }),
     });
   });
@@ -66,6 +67,15 @@ describe('ledger state migration', () => {
 
     expect(normalized.settings.providerIconStyle).toBe('logo');
   });
+  test('sanitizes account mapping and drops invalid entries', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [], transactions: [], debts: [], goal: null,
+      settings: { accountMapping: { '支付宝 · 储蓄卡': 'cash', '': 'bad', '微信': 42 } },
+    });
+
+    expect(normalized.settings.accountMapping).toEqual({ '支付宝 · 储蓄卡': 'cash' });
+  });
+
   test('cleans duplicate and invalid account display order values', () => {
     const normalized = normalizeLedgerState({
       accounts: [],

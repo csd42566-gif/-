@@ -190,10 +190,10 @@ export default function Index() {
       setError(code === 'repayment-debt-invalid' ? '请选择对应的欠款后再确认还款。' : code === 'detected-event-not-postable' ? '提醒或失败通知不能直接记为支出。' : '更新识别记录失败，请重试。');
     }
   };
-  const reviewPendingBatch = async (ids: Set<string>): Promise<BatchReviewResult> => {
+  const reviewPendingBatch = async (ids: Set<string>, accountOverrides?: ReadonlyMap<string, string>): Promise<BatchReviewResult> => {
     let result: BatchReviewResult | undefined;
     await commit((previous) => {
-      result = applyPendingBatch(previous, ids);
+      result = applyPendingBatch(previous, ids, accountOverrides);
       return result.state;
     });
     if (!result) throw new Error('batch-review-result-missing');

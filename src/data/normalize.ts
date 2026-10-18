@@ -10,6 +10,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
   const providerIconStyle = rawSettings.providerIconStyle === 'badge' || rawSettings.providerIconStyle === 'logo'
     ? rawSettings.providerIconStyle
     : defaultSettings.providerIconStyle;
+  const accountMapping = normalizeAccountMapping(rawSettings.accountMapping);
   const work = normalizeWorkProfile(rawSettings.work);
   return {
     accounts: Array.isArray(state.accounts) ? state.accounts : [],
@@ -18,7 +19,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     debts: normalizeDebts(state.debts),
     goal: normalizeGoal(state.goal, Array.isArray(state.accounts) ? state.accounts : [], Array.isArray(state.transactions) ? state.transactions : []),
     attendance: normalizeAttendance(state.attendance),
-    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, providerIconStyle },
+    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, providerIconStyle },
   };
 }
 
@@ -30,16 +31,25 @@ function normalizePendingTransaction(value: unknown): PendingTransaction {
   const provider = boundedText(item.provider, 80);
   const debtId = boundedText(item.debtId, 100);
   const counterparty = boundedText(item.counterparty, 80);
+  const accountLabel = boundedText(item.accountLabel, 120);
   if (eventKind) item.eventKind = eventKind; else delete item.eventKind;
   if (eventStatus) item.eventStatus = eventStatus; else delete item.eventStatus;
   if (provider) item.provider = provider; else delete item.provider;
   if (debtId) item.debtId = debtId; else delete item.debtId;
   if (counterparty) item.counterparty = counterparty; else delete item.counterparty;
+  if (accountLabel) item.accountLabel = accountLabel; else delete item.accountLabel;
   return item;
 }
 
 function enumValue<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
   return typeof value === 'string' && allowed.includes(value as T) ? value as T : undefined;
+}
+
+function normalizeAccountMapping(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter((entry): entry is [string, string] => typeof entry[0] === 'string' && entry[0].trim().length > 0 && typeof entry[1] === 'string' && entry[1].trim().length > 0)
+    .map(([label, accountId]) => [label.trim().slice(0, 120), accountId.trim().slice(0, 100)]));
 }
 
 function boundedText(value: unknown, maxLength: number): string | undefined {

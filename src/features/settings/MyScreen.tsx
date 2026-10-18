@@ -11,6 +11,7 @@ import { logger } from '../../core/logging/logger';
 import { nativeFinance } from '../../integrations/notifications/nativeFinance';
 import { ModuleControlPanel } from '../module/ModuleControlPanel';
 import { buildBackupFileName } from './escape';
+import { AccountMappingSection, collectAccountLabels } from './AccountMappingSection';
 import { WorkSettingsSection } from './WorkSettingsSection';
 import { AttendanceCalendar } from '../attendance/AttendanceCalendar';
 import { isDefaultWorkProfile } from './workSettings';
@@ -74,6 +75,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
   const [statusServiceError, setStatusServiceError] = useState('');
   const lastReconcile = lastBalanceReconciliation(state);
   const settings = state.settings;
+  const accountMappingLabels = collectAccountLabels(state);
   const entries = logger.getEntries();
 
   React.useEffect(() => {
@@ -266,6 +268,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
         {state.accounts.length > 0 && <Text style={styles.lastReconcile}>{lastReconcile ? `上次校准：${formatReconcileDate(lastReconcile.occurredAt)}，调整 ${formatSignedMoney(lastReconcile.totalAdjustment)}` : '尚未校准账户余额'}</Text>}
       </>)}
       {accordion('salary', '工资', '底薪、转正、补贴与预算预留', <><WorkSettingsSection section="salary" profile={settings.work} reducedMotion={settings.reducedMotion} onChange={onUpdateWorkProfile} />{renderRow('essentialMonthlyExpenses')}</>, isDefaultWorkProfile(settings.work) ? '默认值 · 待确认' : undefined)}
+      {accordion('accountMapping', '账户映射', '把账单里的支付账户名关联到应用账户', <AccountMappingSection labels={accountMappingLabels} accounts={state.accounts} mapping={settings.accountMapping} reducedMotion={settings.reducedMotion} onChange={(accountMapping) => onUpdateSettings({ accountMapping })} />)}
       {accordion('attendance', '考勤', '月休、每天工时与考勤日历', <><WorkSettingsSection section="attendance" profile={settings.work} reducedMotion={settings.reducedMotion} onChange={onUpdateWorkProfile} /><Pressable onPress={() => setPage('attendance')} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>考勤日历</Text><Text style={styles.rowValue}>查看 ›</Text></Pressable></>)}
       {accordion('reminders', '提醒偏好', '现金流与消费提醒', <>{renderRow('riskCardMode')}{renderRow('reminderMode')}</>)}
       <Pressable onPress={() => setPage('settings')} accessibilityRole="button" style={({ pressed }) => [styles.settingsEntry, pressed && styles.pressed]}>

@@ -5,8 +5,8 @@ export type BatchSelectionState = 'none' | 'partial' | 'all';
 export interface BatchFailure { id: string; label: string; reason: string }
 export interface BatchReviewResult { state: LedgerState; successCount: number; failures: BatchFailure[] }
 
-export function isBatchablePending(item: PendingTransaction): boolean {
-  return !!item.accountId && item.eventKind !== 'repayment';
+export function isBatchablePending(item: PendingTransaction, fallbackAccountId?: string): boolean {
+  return !!(item.accountId || fallbackAccountId) && !isRepaymentPending(item);
 }
 
 export function batchSelectionState(eligibleIds: string[], selectedIds: Set<string>): BatchSelectionState {
@@ -26,19 +26,20 @@ export function selectedBatchSummary(items: PendingTransaction[], selectedIds: S
   }, { count: 0, expense: 0, income: 0 });
 }
 
-export function reviewPendingBatch(state: LedgerState, selectedIds: Set<string>): BatchReviewResult {
+export function reviewPendingBatch(state: LedgerState, selectedIds: Set<string>, accountOverrides?: ReadonlyMap<string, string>): BatchReviewResult {
   let next = state;
   let successCount = 0;
   const failures: BatchFailure[] = [];
   for (const id of selectedIds) {
     const item = state.pendingTransactions.find((candidate) => candidate.id === id);
     if (!item) continue;
-    if (!isBatchablePending(item)) {
-      failures.push({ id, label: pendingLabel(item), reason: batchBlockedReason(item) });
+    const accountOverride = accountOverrides?.get(id);
+    if (!isBatchablePending(item, accountOverride)) {
+      failures.push({ id, label: pendingLabel(item), reason: batchBlockedReason(item, accountOverride) });
       continue;
     }
     try {
-      next = reviewDetectedTransaction(next, id, 'accept');
+      next = reviewDetectedTransaction(next, id, 'accept', item.accountId ? {} : { accountId: accountOverride });
       const created = next.transactions[0];
       const existingIds = new Set(next.transactions.slice(1).map((transaction) => transaction.id));
       if (existingIds.has(created.id)) {
@@ -58,10 +59,14 @@ export function reviewPendingBatch(state: LedgerState, selectedIds: Set<string>)
   return { state: next, successCount, failures };
 }
 
-export function batchBlockedReason(item: PendingTransaction): string {
-  if (!item.accountId) return '需选择账户';
-  if (item.eventKind === 'repayment') return '需选择欠款后确认';
+export function batchBlockedReason(item: PendingTransaction, fallbackAccountId?: string): string {
+  if (isRepaymentPending(item)) return '需选择欠款后确认';
+  if (!item.accountId && !fallbackAccountId) return '需选择账户';
   return '该记录不可批量确认';
+}
+
+function isRepaymentPending(item: PendingTransaction): boolean {
+  return item.eventKind === 'repayment' || item.eventKind === 'proxy-repayment';
 }
 
 function pendingLabel(item: PendingTransaction): string {

@@ -36,3 +36,23 @@ test('批量确认在一次状态结果中处理全部选中项', () => {
   expect(result.state.transactions).toHaveLength(2);
   expect(new Set(result.state.transactions.map((transaction) => transaction.id)).size).toBe(2);
 });
+test('批量默认账户会在一次批量结果中写入每条缺失账户的记录', () => {
+  const state = { ...createInitialLedgerState(), accounts: [{ id: 'cash', name: '现金', kind: 'cash' as const, balance: 1000 }], pendingTransactions: [noAccount] };
+  const result = reviewPendingBatch(state, new Set(['no-account']), new Map([['no-account', 'cash']]));
+
+  expect(result.successCount).toBe(1);
+  expect(result.failures).toEqual([]);
+  expect(result.state.pendingTransactions).toEqual([]);
+  expect(result.state.transactions[0]).toMatchObject({ accountId: 'cash', amount: 20 });
+  expect(result.state.accounts[0].balance).toBe(980);
+});
+
+test('批量默认账户不会绕过还款类人工核对', () => {
+  const proxyRepayment: PendingTransaction = { id: 'proxy', type: 'expense', amount: 30, occurredAt: '2026-10-18T12:00:00.000Z', source: 'import', confidence: 0.8, eventKind: 'proxy-repayment' };
+  const state = { ...createInitialLedgerState(), accounts: [{ id: 'cash', name: '现金', kind: 'cash' as const, balance: 1000 }], pendingTransactions: [proxyRepayment] };
+  const result = reviewPendingBatch(state, new Set(['proxy']), new Map([['proxy', 'cash']]));
+
+  expect(result.successCount).toBe(0);
+  expect(result.state.transactions).toEqual([]);
+  expect(result.failures[0]).toMatchObject({ id: 'proxy', reason: '需选择欠款后确认' });
+});

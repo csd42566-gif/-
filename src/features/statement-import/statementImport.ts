@@ -111,7 +111,15 @@ function cardTail(value: string): string | null {
   return matches?.[matches.length - 1] ?? null;
 }
 
-function findAccount(accounts: Account[], paymentMethod: string, providerLabel: string): Account | undefined {
+export function statementAccountLabel(paymentMethod: string, providerLabel: string): string {
+  const name = normalizePaymentMethod(paymentMethod, providerLabel);
+  return name === providerLabel ? providerLabel : providerLabel + ' · ' + name;
+}
+
+function findAccount(accounts: Account[], accountMapping: Record<string, string>, paymentMethod: string, providerLabel: string): Account | undefined {
+  const accountLabel = statementAccountLabel(paymentMethod, providerLabel);
+  const mapped = accounts.find((account) => account.id === accountMapping[accountLabel]);
+  if (mapped) return mapped;
   const name = normalizePaymentMethod(paymentMethod, providerLabel);
   const exact = accounts.find((account) => account.name === name);
   if (exact) return exact;
@@ -179,11 +187,12 @@ function importParsedStatement(state: LedgerState, parsed: StatementParseResult,
     const externalKey = externalKeyOf(provider, row);
     if (knownTransactionIds.has(id) || knownTransactionKeys.has(externalKey) || knownPendingIds.has(pending)) continue;
     const mapping = categorizeRow(row, provider);
-    const account = findAccount(state.accounts, row.paymentMethod, providerLabel);
+    const account = findAccount(state.accounts, state.settings.accountMapping, row.paymentMethod, providerLabel);
+    const accountLabel = statementAccountLabel(row.paymentMethod, providerLabel);
     const note = describeRow(row);
     if (row.kind === 'repayment') {
       pendingTransactions.push({
-        id: pending, type: 'expense', amount: row.amount, accountId: account?.id, category: '还款', note,
+        id: pending, type: 'expense', amount: row.amount, accountId: account?.id, accountLabel, category: '还款', note,
         occurredAt: row.occurredAt, source: 'import', confidence: 1, eventKind: 'repayment', eventStatus: 'success',
         provider: providerLabel, counterparty: row.counterparty === '/' ? undefined : row.counterparty,
       });
@@ -195,6 +204,7 @@ function importParsedStatement(state: LedgerState, parsed: StatementParseResult,
         id: pending,
         type: row.kind === 'income' || row.kind === 'refund' ? 'income' : 'expense',
         amount: row.amount,
+        accountLabel,
         category: row.kind === 'refund' ? '退款' : mapping.category,
         note,
         occurredAt: row.occurredAt,

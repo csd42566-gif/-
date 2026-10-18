@@ -72,6 +72,7 @@ test('匹配不到支付账户时进入待确认且不创建账户', () => {
 
   expect(unmatched).toMatchObject({ amount: 7, provider: '支付宝' });
   expect(unmatched?.accountId).toBeUndefined();
+  expect(unmatched?.accountLabel).toBe('支付宝 · 招商银行储蓄卡(7997)');
   expect(result.state.accounts.some((account) => account.name === '招商银行储蓄卡(7997)')).toBe(false);
 });
 
@@ -128,4 +129,19 @@ test('重复导入不新增交易或待确认记录', () => {
   expect(second.state.pendingTransactions).toHaveLength(2);
   expect(second.state.accounts.find((account) => account.id === 'existing-alipay')?.balance).toBe(1060);
   expect(second.summary.existingCount).toBe(4);
+});
+
+test('账户映射优先于名称和卡尾号自动匹配', () => {
+  const state = createState();
+  state.accounts.push({ id: 'mapped-bank', name: '我的工资卡', kind: 'bank', balance: 1000 });
+  state.settings = {
+    ...state.settings,
+    accountMapping: { '支付宝 · 招商银行储蓄卡(7997)': 'mapped-bank' },
+  };
+
+  const result = importAlipayStatement(state, csv);
+  const transaction = result.state.transactions.find((item) => item.id.includes('ORDER-1'));
+
+  expect(transaction).toMatchObject({ accountId: 'mapped-bank', amount: 7 });
+  expect(result.state.accounts.find((account) => account.id === 'mapped-bank')?.balance).toBe(993);
 });

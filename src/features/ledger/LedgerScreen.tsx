@@ -20,7 +20,7 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
   state: LedgerState;
   onAdd: () => void;
   onReviewPending: (id: string, action: ReviewAction, edits?: Partial<Pick<PendingTransaction, 'amount' | 'accountId' | 'category' | 'debtId' | 'counterparty'>>) => void;
-  onBatchConfirmPending: (ids: Set<string>) => Promise<BatchReviewResult>;
+  onBatchConfirmPending: (ids: Set<string>, accountOverrides?: ReadonlyMap<string, string>) => Promise<BatchReviewResult>;
   onImportStatement: (provider: StatementProvider, text: string) => Promise<StatementImportSummary>;
 }) {
   const [type, setType] = useState<FilterType>('all');
@@ -34,6 +34,7 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
   const [editAccountId, setEditAccountId] = useState('');
   const [editDebtId, setEditDebtId] = useState('');
   const [editCounterparty, setEditCounterparty] = useState('');
+  const [editError, setEditError] = useState('');
   const [statementImportVisible, setStatementImportVisible] = useState(false);
   const now = new Date();
   const providers = useMemo(() => providerList(state.transactions), [state.transactions]);
@@ -50,14 +51,15 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
     setEditing(item);
     setEditAmount(String(item.amount));
     setEditCategory(item.category ?? '');
-    setEditAccountId(item.accountId ?? state.accounts[0]?.id ?? '');
+    setEditAccountId(item.accountId && state.accounts.some((account) => account.id === item.accountId) ? item.accountId : '');
     setEditDebtId(item.debtId ?? state.debts[0]?.id ?? '');
     setEditCounterparty(item.counterparty ?? '');
+    setEditError('');
   };
   const commitEdit = () => {
     const amount = Number(editAmount);
-    if (!editing || !Number.isFinite(amount) || amount <= 0) return;
-    if (!state.accounts.some((account) => account.id === editAccountId)) return;
+    if (!editing || !Number.isFinite(amount) || amount <= 0) { setEditError('请输入大于 0 的金额。'); return; }
+    if (!state.accounts.some((account) => account.id === editAccountId)) { setEditError('请先选择账户'); return; }
     onReviewPending(editing.id, 'accept', {
       amount,
       accountId: editAccountId,
@@ -65,8 +67,11 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
       ...(isRepayment(editing) ? { debtId: editDebtId || undefined } : {}),
       ...(editing.eventKind === 'proxy-repayment' ? { counterparty: editCounterparty.trim() || undefined } : {}),
     });
+    setEditError('');
     setEditing(null);
   };
+  const editAccountValid = !!editing && state.accounts.some((account) => account.id === editAccountId);
+  const editAmountValid = !!editing && Number.isFinite(Number(editAmount)) && Number(editAmount) > 0;
   const confirmPending = (item: PendingTransaction) => {
     if (!isPostable(item)) return;
     if (isRepayment(item) || !item.accountId || !state.accounts.some((account) => account.id === item.accountId)) beginEdit(item);
@@ -108,7 +113,18 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
 
     <StatementImportSheet visible={statementImportVisible} state={state} onClose={() => setStatementImportVisible(false)} onImport={onImportStatement} />
     <Modal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
-      <View style={styles.backdrop}><View style={styles.sheet}><Text style={styles.sheetTitle}>{editing && isRepayment(editing) ? '核对还款记录' : '核对识别记录'}</Text><Text style={styles.label}>记入账户</Text><View style={styles.accountChoices}>{state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={editAccountId === account.id} onPress={() => setEditAccountId(account.id)} />)}</View>{editing && isRepayment(editing) && <><Text style={styles.label}>对应欠款</Text><View style={styles.accountChoices}>{state.debts.map((debt) => <Choice key={debt.id} label={`${debt.name} ¥${debt.amount.toFixed(0)}`} selected={editDebtId === debt.id} onPress={() => setEditDebtId(debt.id)} />)}</View>{!state.debts.length && <Text style={styles.noticeText}>还没有欠款记录，先在“欠账”里添加后再确认还款。</Text>}</>}<Text style={styles.label}>金额</Text><TextInput value={editAmount} onChangeText={setEditAmount} keyboardType="decimal-pad" style={styles.input} /><Text style={styles.label}>分类</Text><TextInput value={editCategory} onChangeText={setEditCategory} style={styles.input} />{editing?.eventKind === 'proxy-repayment' && <><Text style={styles.label}>代还对象</Text><TextInput value={editCounterparty} onChangeText={setEditCounterparty} placeholder="例如：张三" placeholderTextColor={colors.muted} style={styles.input} /></>}<View style={styles.sheetActions}><Text onPress={() => setEditing(null)} style={styles.dismiss}>取消</Text><Text onPress={commitEdit} style={styles.accept}>确认并记账</Text></View></View></View>
+      <View style={styles.backdrop}><View style={styles.sheet}>
+        <Text style={styles.sheetTitle}>{editing && isRepayment(editing) ? '核对还款记录' : '核对识别记录'}</Text>
+        <Text style={styles.label}>记入账户</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={editAccountId === account.id} onPress={() => { setEditAccountId(account.id); setEditError(''); }} />)}</ScrollView>
+        {!editAccountValid && <Text style={styles.error}>请先选择账户</Text>}
+        {editing && isRepayment(editing) && <><Text style={styles.label}>对应欠款</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.debts.map((debt) => <Choice key={debt.id} label={debt.name + ' ¥' + debt.amount.toFixed(0)} selected={editDebtId === debt.id} onPress={() => setEditDebtId(debt.id)} />)}</ScrollView>{!state.debts.length && <Text style={styles.noticeText}>还没有欠款记录，先在“欠账”里添加后再确认还款。</Text>}</>}
+        <Text style={styles.label}>金额</Text><TextInput value={editAmount} onChangeText={(value) => { setEditAmount(value); setEditError(''); }} keyboardType="decimal-pad" style={styles.input} />
+        <Text style={styles.label}>分类</Text><TextInput value={editCategory} onChangeText={setEditCategory} style={styles.input} />
+        {editing?.eventKind === 'proxy-repayment' && <><Text style={styles.label}>代还对象</Text><TextInput value={editCounterparty} onChangeText={setEditCounterparty} placeholder="例如：张三" placeholderTextColor={colors.muted} style={styles.input} /></>}
+        {!!editError && <Text style={styles.error}>{editError}</Text>}
+        <View style={styles.sheetActions}><Pressable onPress={() => setEditing(null)} style={styles.sheetAction}><Text style={styles.dismiss}>取消</Text></Pressable><Pressable disabled={!editAccountValid || !editAmountValid} onPress={commitEdit} style={[styles.sheetAction, (!editAccountValid || !editAmountValid) && styles.disabled]}><Text style={[styles.accept, (!editAccountValid || !editAmountValid) && styles.disabledText]}>确认并记账</Text></Pressable></View>
+      </View></View>
     </Modal>
   </View>;
 }
@@ -116,7 +132,7 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
 function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, onBeginEdit, onConfirm }: {
   state: LedgerState;
   onReviewPending: (id: string, action: ReviewAction) => void;
-  onBatchConfirmPending: (ids: Set<string>) => Promise<BatchReviewResult>;
+  onBatchConfirmPending: (ids: Set<string>, accountOverrides?: ReadonlyMap<string, string>) => Promise<BatchReviewResult>;
   onBeginEdit: (item: PendingTransaction) => void;
   onConfirm: (item: PendingTransaction) => void;
 }) {
@@ -124,16 +140,25 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<BatchReviewResult | null>(null);
   const [batchError, setBatchError] = useState('');
-  const eligible = useMemo(() => state.pendingTransactions.filter((item) => isBatchablePending(item) && isPostable(item)), [state.pendingTransactions]);
+  const [batchDefaultAccountId, setBatchDefaultAccountId] = useState('');
+  const [visibleCount, setVisibleCount] = useState(20);
+  const missingAccountItems = useMemo(() => state.pendingTransactions.filter((item) => isPostable(item) && !item.accountId && !isRepayment(item)), [state.pendingTransactions]);
+  const eligible = useMemo(() => state.pendingTransactions.filter((item) => isPostable(item) && isBatchablePending(item, !item.accountId && !isRepayment(item) ? batchDefaultAccountId : undefined)), [state.pendingTransactions, batchDefaultAccountId]);
   const eligibleIds = eligible.map((item) => item.id);
+  const firstTenIds = eligibleIds.slice(0, 10);
+  const firstTenSelected = firstTenIds.length > 0 && firstTenIds.every((id) => selectedIds.has(id));
   const selectionState = batchSelectionState(eligibleIds, selectedIds);
   const summary = selectedBatchSummary(eligible, selectedIds);
-  useEffect(() => {
-    setSelectedIds((current) => {
-      const next = new Set([...current].filter((id) => eligibleIds.includes(id)));
-      return next.size === current.size ? current : next;
-    });
-  }, [state.pendingTransactions]);
+  const visiblePending = state.pendingTransactions.slice(0, visibleCount);
+  const remaining = state.pendingTransactions.length - visiblePending.length;
+  const selectedAccountNames = Array.from(new Set(eligible
+    .filter((item) => selectedIds.has(item.id))
+    .map((item) => item.accountId || batchDefaultAccountId)
+    .filter((accountId): accountId is string => !!accountId)
+    .map((accountId) => state.accounts.find((account) => account.id === accountId)?.name || accountId)));
+  const accountOverrideMap = new Map(missingAccountItems
+    .filter((item) => selectedIds.has(item.id) && !!batchDefaultAccountId)
+    .map((item) => [item.id, batchDefaultAccountId] as [string, string]));
   const toggleSelected = (id: string) => {
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -141,15 +166,29 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
       return next;
     });
   };
-  const toggleAll = () => {
-    setSelectedIds(selectionState === 'all' ? new Set() : new Set(eligibleIds));
+  const toggleFirstTen = () => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      firstTenIds.forEach((id) => firstTenSelected ? next.delete(id) : next.add(id));
+      return next;
+    });
+  };
+  const selectAll = () => setSelectedIds(new Set(eligibleIds));
+  const selectDefaultAccount = (accountId: string) => {
+    setBatchDefaultAccountId(accountId);
+    const missingIds = missingAccountItems.map((item) => item.id);
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (accountId) missingIds.forEach((id) => next.add(id)); else missingIds.forEach((id) => next.delete(id));
+      return next;
+    });
   };
   const executeBatch = async () => {
     setBatchBusy(true);
     setBatchError('');
     setBatchResult(null);
     try {
-      const result = await onBatchConfirmPending(new Set(selectedIds));
+      const result = await onBatchConfirmPending(new Set(selectedIds), accountOverrideMap);
       setBatchResult(result);
       setSelectedIds(new Set());
     } catch {
@@ -160,27 +199,42 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
   };
   const confirmBatch = () => {
     if (!summary.count) return;
-    Alert.alert('批量确认', `将入账 ${summary.count} 笔，支出 ¥${summary.expense.toFixed(2)} · 收入 ¥${summary.income.toFixed(2)}，确认后不可撤销`, [
+    const accountText = selectedAccountNames.length <= 2
+      ? selectedAccountNames.join('、')
+      : selectedAccountNames[0] + ' 等 ' + selectedAccountNames.length + ' 个账户';
+    Alert.alert('批量确认', '将入账 ' + summary.count + ' 笔，支出 ¥' + summary.expense.toFixed(2) + ' · 收入 ¥' + summary.income.toFixed(2) + '\n写入账户：' + (accountText || '未指定') + '\n确认后不可撤销', [
       { text: '取消', style: 'cancel' },
       { text: '确认入账', onPress: () => { void executeBatch(); } },
     ]);
   };  return <><SectionTitle>待确认识别 · {state.pendingTransactions.length}</SectionTitle>
     {!!state.pendingTransactions.length && <View style={styles.batchBar}>
-      <Pressable disabled={!eligibleIds.length || batchBusy} onPress={toggleAll} accessibilityRole="checkbox" accessibilityState={{ checked: selectionState === 'all' }} style={styles.batchSelectAll}>
+      <Pressable disabled={!eligibleIds.length || batchBusy} onPress={toggleFirstTen} accessibilityRole="checkbox" accessibilityState={{ checked: selectionState === 'all' }} style={styles.batchSelectAll}>
         <BatchCheckbox state={selectionState} disabled={!eligibleIds.length || batchBusy} />
         <Text style={styles.batchSelectText}>全选</Text>
       </Pressable>
-      <Text style={styles.batchSummary}>已选 {summary.count} 笔 · 支出 ¥{summary.expense.toFixed(2)} · 收入 ¥{summary.income.toFixed(2)}</Text>
+      <View style={styles.batchSummaryBlock}>
+        <Text style={styles.batchSummary}>已选 {summary.count} 笔（共 {eligibleIds.length} 笔可批量）</Text>
+        <Text style={styles.batchSummary}>支出 ¥{summary.expense.toFixed(2)} · 收入 ¥{summary.income.toFixed(2)}</Text>
+        {summary.count < eligibleIds.length && <Pressable onPress={selectAll}><Text style={styles.batchSelectAllText}>全选全部</Text></Pressable>}
+      </View>
       <Pressable disabled={!summary.count || batchBusy} onPress={confirmBatch} style={({ pressed }) => [styles.batchButton, (!summary.count || batchBusy) && styles.disabled, pressed && styles.pressed]}><Text style={styles.batchButtonText}>批量确认</Text></Pressable>
+    </View>}
+    {!!missingAccountItems.length && <View style={styles.defaultAccountRow}>
+      <Text style={styles.defaultAccountLabel}>为 {missingAccountItems.length} 笔未匹配记录指定账户：</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>
+        {state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={batchDefaultAccountId === account.id} onPress={() => selectDefaultAccount(account.id)} />)}
+      </ScrollView>
+      {!state.accounts.length && <Text style={styles.noticeText}>请先创建账户。</Text>}
     </View>}
     {!!batchResult && <View style={[styles.batchResult, batchResult.failures.length > 0 ? styles.batchResultError : undefined]}>
       <Text style={styles.batchResultText}>成功 {batchResult.successCount} 笔，失败 {batchResult.failures.length} 笔</Text>
       {batchResult.failures.map((failure) => <Text key={failure.id} style={styles.batchFailure}>{failure.label}：{failure.reason}</Text>)}
     </View>}
     {!!batchError && <Text style={styles.error}>{batchError}</Text>}
-    {state.pendingTransactions.length ? state.pendingTransactions.map((item) => {
-      const batchable = isBatchablePending(item) && isPostable(item);
-      const blockedReason = !item.accountId ? '需选择账户' : item.eventKind === 'repayment' ? '需选择欠款后确认' : !isPostable(item) ? '该记录不可批量入账' : '';
+    {state.pendingTransactions.length ? visiblePending.map((item) => {
+      const fallbackAccountId = !item.accountId && !isRepayment(item) ? batchDefaultAccountId : undefined;
+      const batchable = isBatchablePending(item, fallbackAccountId) && isPostable(item);
+      const blockedReason = batchBlockedReason(item, fallbackAccountId);
       return <PressableCard key={item.id} style={[styles.pending, !isPostable(item) && styles.pendingNotice]}>
         <View style={styles.pendingHeading}>
           <Pressable disabled={!batchable || batchBusy} onPress={() => toggleSelected(item.id)} accessibilityRole="checkbox" accessibilityState={{ checked: selectedIds.has(item.id), disabled: !batchable }} style={styles.batchCheckTarget}>
@@ -188,7 +242,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
           </Pressable>
           <View style={styles.pendingContent}>
             <View style={styles.row}><Text style={styles.name}>{pendingTitle(item)}</Text><Text style={styles.amount}>¥{item.amount.toFixed(2)}</Text></View>
-            <Text style={styles.caption}>{item.provider ? `${item.provider} · ` : ''}{item.counterparty ? `对象：${item.counterparty} · ` : ''}{item.note || '识别到一笔交易'} · 置信度 {Math.round(item.confidence * 100)}% · {item.source === 'notification' ? '通知' : item.source === 'import' ? '导入' : item.source}</Text>
+            <Text style={styles.caption}>{item.provider ? item.provider + ' · ' : ''}{item.counterparty ? '对象：' + item.counterparty + ' · ' : ''}{item.note || '识别到一笔交易'} · 置信度 {Math.round(item.confidence * 100)}% · {item.source === 'notification' ? '通知' : item.source === 'import' ? '导入' : item.source}</Text>
             {!batchable && <Text style={styles.blockedReason}>{blockedReason}</Text>}
           </View>
         </View>
@@ -196,6 +250,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
         <View style={styles.actions}><Text onPress={() => onReviewPending(item.id, 'dismiss')} style={styles.dismiss}>忽略</Text>{isPostable(item) && <><Text onPress={() => onBeginEdit(item)} style={styles.edit}>编辑</Text><Text onPress={() => onConfirm(item)} style={styles.accept}>确认</Text></>}</View>
       </PressableCard>;
     }) : <View style={styles.empty}><Text style={styles.emptyTitle}>没有待确认记录</Text><Text style={styles.caption}>短信、通知和账单接入后，识别结果会先在这里核对。</Text></View>}
+    {remaining > 0 && <Pressable onPress={() => setVisibleCount((current) => current + 50)} style={styles.loadMore}><Text style={styles.loadMoreText}>还有 {remaining} 条 · 点击展开</Text></Pressable>}
   </>;
 }
 
@@ -332,7 +387,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, color: colors.muted },
   total: { fontSize: 30, fontWeight: '900', color: colors.ink, marginTop: 4, fontVariant: ['tabular-nums'] },
   caption: { fontSize: 11, color: colors.muted, marginTop: 5 },
-  pending: { marginBottom: 8, borderColor: colors.warning }, pendingHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }, pendingContent: { flex: 1 }, batchBar: { minHeight: 52, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }, batchSelectAll: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs }, batchSelectText: { fontSize: 11, color: colors.ink, fontWeight: '700' }, batchSummary: { flex: 1, minWidth: 160, fontSize: 10, color: colors.muted, fontVariant: ['tabular-nums'] }, batchButton: { minHeight: 40, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: colors.accent }, batchButtonText: { fontSize: 11, color: colors.surface, fontWeight: '800' }, batchCheckTarget: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }, checkbox: { width: 20, height: 20, borderWidth: 1, borderColor: colors.muted, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }, checkboxChecked: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, checkboxDisabled: { opacity: 0.35 }, checkboxGlyph: { fontSize: 13, color: colors.accent, fontWeight: '900' }, blockedReason: { fontSize: 10, color: colors.warning, marginTop: spacing.xxs }, batchResult: { marginVertical: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.successSoft }, batchResultError: { backgroundColor: colors.dangerSoft }, batchResultText: { fontSize: 11, color: colors.ink, fontWeight: '800', fontVariant: ['tabular-nums'] }, batchFailure: { fontSize: 10, color: colors.danger, marginTop: spacing.xxs },
+  pending: { marginBottom: 8, borderColor: colors.warning }, pendingHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }, pendingContent: { flex: 1 }, batchBar: { minHeight: 52, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }, batchSelectAll: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs }, batchSelectText: { fontSize: 11, color: colors.ink, fontWeight: '700' }, batchSelectAllText: { fontSize: 10, color: colors.accent, fontWeight: '800' }, batchSummaryBlock: { flex: 1, minWidth: 180, gap: 2 }, batchSummary: { fontSize: 10, color: colors.muted, fontVariant: ['tabular-nums'] }, batchButton: { minHeight: 40, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: colors.accent }, batchButtonText: { fontSize: 11, color: colors.surface, fontWeight: '800' }, batchCheckTarget: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }, checkbox: { width: 20, height: 20, borderWidth: 1, borderColor: colors.muted, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }, checkboxChecked: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, checkboxDisabled: { opacity: 0.35 }, checkboxGlyph: { fontSize: 13, color: colors.accent, fontWeight: '900' }, blockedReason: { fontSize: 10, color: colors.warning, marginTop: spacing.xxs }, batchResult: { marginVertical: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.successSoft }, batchResultError: { backgroundColor: colors.dangerSoft }, batchResultText: { fontSize: 11, color: colors.ink, fontWeight: '800', fontVariant: ['tabular-nums'] }, batchFailure: { fontSize: 10, color: colors.danger, marginTop: spacing.xxs },
   pendingNotice: { borderColor: colors.line },
   noticeText: { fontSize: 11, color: colors.warning, marginTop: 8, lineHeight: 16 },
   transaction: { marginBottom: 8 },
@@ -356,7 +411,7 @@ const styles = StyleSheet.create({
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   providerFilters: { gap: 6, paddingVertical: 9 },
   accountFilters: { gap: 6, paddingVertical: 9 },
-  accountChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 12 },
+  accountChoices: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 12 },
   choice: { minHeight: 40, paddingHorizontal: 10, justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   choiceSelected: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   choiceText: { fontSize: 11, color: colors.muted },
@@ -375,8 +430,8 @@ const styles = StyleSheet.create({
   sheet: { padding: 20, paddingBottom: 30, backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: colors.ink, marginBottom: 16 },
   input: { height: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: 12, color: colors.ink, marginTop: 6, marginBottom: 12 },
-  sheetActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 22, marginTop: 8 },
+  sheetActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 22, marginTop: 8 }, sheetAction: { minHeight: 40, justifyContent: 'center' }, disabledText: { color: colors.muted },
   importButton: { alignItems: 'center', justifyContent: 'center', minHeight: 40, marginTop: 12, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.surface },
   importButtonText: { fontSize: 12, fontWeight: '800', color: colors.accent },
-  pressed: { transform: [{ scale: 0.97 }], opacity: 0.88 }, disabled: { opacity: 0.45 }, error: { fontSize: 11, color: colors.danger, marginTop: spacing.sm },
+  defaultAccountRow: { paddingVertical: spacing.sm, gap: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }, defaultAccountLabel: { fontSize: 11, color: colors.ink, fontWeight: '700' }, loadMore: { minHeight: 48, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface }, loadMoreText: { fontSize: 11, color: colors.accent, fontWeight: '800' }, pressed: { transform: [{ scale: 0.97 }], opacity: 0.88 }, disabled: { opacity: 0.45 }, error: { fontSize: 11, color: colors.danger, marginTop: spacing.sm },
 });
