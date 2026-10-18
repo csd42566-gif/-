@@ -1,4 +1,4 @@
-import { Account, Allowance, AttendanceRecord, Debt, defaultSettings, Goal, LedgerState, PendingTransaction, Settings, Transaction, WorkProfile } from '../core/model/finance';
+import { Account, Allowance, AttendanceRecord, Debt, defaultSettings, EssentialItem, Goal, LedgerState, PendingTransaction, Settings, Transaction, WorkProfile } from '../core/model/finance';
 
 export function normalizeLedgerState(value: unknown): LedgerState {
   if (!value || typeof value !== 'object') throw new Error('ledger-state-invalid');
@@ -11,6 +11,8 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     ? rawSettings.providerIconStyle
     : defaultSettings.providerIconStyle;
   const accountMapping = normalizeAccountMapping(rawSettings.accountMapping);
+  const essentialItems = normalizeEssentialItems(rawSettings.essentialItems, rawSettings.essentialMonthlyExpenses);
+  const essentialMonthlyExpenses = essentialItemsTotal(essentialItems);
   const work = normalizeWorkProfile(rawSettings.work);
   return {
     accounts: Array.isArray(state.accounts) ? state.accounts : [],
@@ -19,7 +21,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     debts: normalizeDebts(state.debts),
     goal: normalizeGoal(state.goal, Array.isArray(state.accounts) ? state.accounts : [], Array.isArray(state.transactions) ? state.transactions : []),
     attendance: normalizeAttendance(state.attendance),
-    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, providerIconStyle },
+    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, essentialItems, essentialMonthlyExpenses, providerIconStyle },
   };
 }
 
@@ -43,6 +45,38 @@ function normalizePendingTransaction(value: unknown): PendingTransaction {
 
 function enumValue<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
   return typeof value === 'string' && allowed.includes(value as T) ? value as T : undefined;
+}
+
+function normalizeEssentialItems(value: unknown, legacyTotal: unknown): EssentialItem[] {
+  if (Array.isArray(value)) {
+    const seen = new Set<string>();
+    return value.flatMap((item, index) => {
+      if (!item || typeof item !== 'object') return [];
+      const raw = item as Partial<EssentialItem>;
+      const name = boundedText(raw.name, 40);
+      if (!name) return [];
+      let id = boundedText(raw.id, 80) ?? 'essential-' + index;
+      if (seen.has(id)) id = id + '-' + index;
+      seen.add(id);
+      return [{
+        id,
+        name,
+        amount: typeof raw.amount === 'number' && Number.isFinite(raw.amount) ? roundCurrency(Math.max(0, raw.amount)) : 0,
+      }];
+    });
+  }
+  if (typeof legacyTotal === 'number' && Number.isFinite(legacyTotal) && legacyTotal > 0) {
+    return [{ id: 'legacy-other', name: '其他', amount: roundCurrency(legacyTotal) }];
+  }
+  return defaultSettings.essentialItems.map((item) => ({ ...item }));
+}
+
+function essentialItemsTotal(items: EssentialItem[]): number {
+  return roundCurrency(items.reduce((sum, item) => sum + item.amount, 0));
+}
+
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function normalizeAccountMapping(value: unknown): Record<string, string> {
@@ -92,9 +126,13 @@ function normalizeWorkProfile(value: unknown): WorkProfile {
     : typeof legacyRegularStartDate === 'string'
       ? legacyRegularStartDate
       : defaultSettings.work.regularStartDate;
+  const probationStartDate = typeof raw.probationStartDate === 'string'
+    ? raw.probationStartDate
+    : defaultSettings.work.probationStartDate;
   return {
     ...defaultSettings.work,
     ...work,
+    probationStartDate,
     regularStartDate,
     allowances: Array.isArray(raw.allowances) ? raw.allowances.map(normalizeAllowance) : defaultSettings.work.allowances,
   };

@@ -1,5 +1,5 @@
 import { defaultWorkProfile, WorkProfile } from '../../core/model/finance';
-import { isDefaultWorkProfile, isValidDateKey, mealAllowanceAmount, withMealAllowance } from './workSettings';
+import { isDefaultWorkProfile, isValidDateKey, mealAllowanceAmount, probationPeriodEnd, withMealAllowance, withProbationPeriod } from './workSettings';
 
 test('修改餐补时保留其他补贴项并固定为转正固定补贴', () => {
   const profile: WorkProfile = {
@@ -37,4 +37,16 @@ test('逐字段判断工资配置是否仍为默认值', () => {
   expect(isDefaultWorkProfile(defaultWorkProfile)).toBe(true);
   expect(isDefaultWorkProfile({ ...defaultWorkProfile, monthlyIncome: 5001 })).toBe(false);
   expect(isDefaultWorkProfile({ ...defaultWorkProfile, allowances: [{ name: '餐补', amount: 600, mode: 'fixed', phase: 'regular' }] })).toBe(false);
+});
+
+
+test('试用期开始和结束日期推导周期起始日与转正日', () => {
+  const updated = withProbationPeriod(defaultWorkProfile, '2026-10-10', '2026-11-09');
+
+  expect(updated).toMatchObject({ probationStartDate: '2026-10-10', cycleStartDay: 10, regularStartDate: '2026-11-10' });
+  expect(updated ? probationPeriodEnd(updated) : '').toBe('2026-11-09');
+});
+
+test('试用期结束日期不能早于开始日期', () => {
+  expect(withProbationPeriod(defaultWorkProfile, '2026-11-09', '2026-10-10')).toBeNull();
 });

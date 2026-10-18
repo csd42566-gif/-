@@ -176,7 +176,7 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
         </View>
       </View>
 
-      {state.goal ? <Pressable onPress={onGoGoals} accessibilityRole="button" style={({ pressed }) => [styles.goalSection, pressed && styles.pressed]}>
+      {state.goal && <Pressable onPress={onGoGoals} accessibilityRole="button" style={({ pressed }) => [styles.goalSection, pressed && styles.pressed]}>
         <View style={styles.sectionHeadingRow}>
           <Text style={styles.sectionHeading}>存钱目标</Text>
           <Text style={styles.sectionName}>{state.goal.name} ›</Text>
@@ -188,9 +188,6 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
           <Text style={styles.goalDate}>截止 {state.goal.deadline}</Text>
         </View>
         <Text style={styles.goalCaption}>每日需存 ¥{financials.goalDailySave.toFixed(2)} · 剩余 {financials.goalRemainingDays ?? 0} 天</Text>
-      </Pressable> : <Pressable onPress={onGoGoals} accessibilityRole="button" style={({ pressed }) => [styles.emptyGoal, pressed && styles.pressed]}>
-        <Text style={styles.sectionHeading}>设置第一个存钱目标</Text>
-        <Text style={styles.goalCaption}>建立目标后，这里会显示每日需存和截止日 ›</Text>
       </Pressable>}
 
       {state.settings.repaymentReminders && <Pressable onPress={onGoDebts} accessibilityRole="button" style={({ pressed }) => [styles.repaymentRow, pressed && styles.pressed]}>
@@ -306,7 +303,6 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: 20, fontWeight: '800', color: colors.ink, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
   metricCaption: { fontSize: 10, color: colors.muted, marginTop: spacing.xxs },
   goalSection: { minHeight: 76, justifyContent: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
-  emptyGoal: { minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: colors.line },
   sectionHeadingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   sectionHeading: { fontSize: 12, fontWeight: '800', color: colors.ink },
   sectionName: { fontSize: 11, color: colors.muted, flexShrink: 1 },

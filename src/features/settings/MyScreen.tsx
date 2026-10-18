@@ -12,6 +12,8 @@ import { nativeFinance } from '../../integrations/notifications/nativeFinance';
 import { ModuleControlPanel } from '../module/ModuleControlPanel';
 import { buildBackupFileName } from './escape';
 import { AccountMappingSection, collectAccountLabels } from './AccountMappingSection';
+import { EssentialItemsSection } from './EssentialItemsSection';
+import { essentialItemsTotal } from './essentialItems';
 import { WorkSettingsSection } from './WorkSettingsSection';
 import { AttendanceCalendar } from '../attendance/AttendanceCalendar';
 import { isDefaultWorkProfile } from './workSettings';
@@ -22,14 +24,13 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 type SettingKey = keyof Settings;
 type Choice = { label: string; value: string | number | boolean };
-const definitions: Partial<Record<SettingKey, { title: string; description: string; choices?: Choice[]; numeric?: boolean }>> = {
+const definitions: Partial<Record<SettingKey, { title: string; description: string; choices?: Choice[] }>> = {
   riskCardMode: { title: '现金流风险卡片', description: '真实资金缺口提醒始终会保留。', choices: [{ label: '始终显示', value: 'always' }, { label: '仅风险时显示', value: 'risk-only' }, { label: '首页隐藏', value: 'hidden' }] },
   reminderMode: { title: '消费后提醒', description: '只提示预算变化，不会锁定或阻止消费。', choices: [{ label: '神罚模式', value: 'punish' }, { label: '平衡提醒', value: 'balanced' }, { label: '轻提醒', value: 'light' }, { label: '详细提醒', value: 'strict' }] },
   providerIconStyle: { title: '账单 App 图标', description: '品牌图标使用官方品牌字标，字符徽章使用来源首字。', choices: [{ label: '品牌图标', value: 'logo' }, { label: '字符徽章', value: 'badge' }] },
   strictMode: { title: '严格模式', description: '启用后增加超预算提示，但仍允许用户正常记账。', choices: [{ label: '关闭', value: false }, { label: '开启', value: true }] },
   repaymentReminders: { title: '还款到期提醒', description: '显示账本中记录的还款和账单到期提示。', choices: [{ label: '关闭', value: false }, { label: '开启', value: true }] },
   reducedMotion: { title: '减少动效', description: '关闭弹层和切换的非必要动画。', choices: [{ label: '跟随默认动效', value: false }, { label: '减少动效', value: true }] },
-  essentialMonthlyExpenses: { title: '每月必要支出', description: '填写尚未计入账本的预计必要支出；已记录的必要支出会抵扣这笔预留。', numeric: true },
 };
 const integrations = {
   bank: { title: '银行与支付平台', body: '当前版本未连接任何银行或支付平台。不会读取账户凭证，也不会同步交易。接入服务与授权流程尚未配置。' },
@@ -58,7 +59,6 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ accounts: state.accounts.length === 0, salary: false, attendance: false, reminders: false });
   const [activeKey, setActiveKey] = useState<SettingKey | null>(null);
   const [integration, setIntegration] = useState<IntegrationKey | null>(null);
-  const [numberValue, setNumberValue] = useState('');
   const [logVersion, setLogVersion] = useState(0);
   const [accountModal, setAccountModal] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
@@ -114,16 +114,10 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((current) => ({ ...current, [key]: !current[key] }));
   };
-  const openSetting = (key: SettingKey) => { setActiveKey(key); setNumberValue(String(settings[key])); };
+  const openSetting = (key: SettingKey) => { setActiveKey(key); };
   const saveChoice = (key: SettingKey, value: string | number | boolean) => {
     if (key === 'riskCardMode') onChangeRiskMode(value as RiskCardMode);
     else onUpdateSettings({ [key]: value } as Partial<Settings>);
-    setActiveKey(null);
-  };
-  const saveNumber = () => {
-    const parsed = Number(numberValue);
-    if (!Number.isFinite(parsed) || parsed < 0 || (activeKey !== 'essentialMonthlyExpenses' && parsed <= 0)) return;
-    if (activeKey) onUpdateSettings({ [activeKey]: parsed } as Partial<Settings>);
     setActiveKey(null);
   };
   const reconcileEntries: BalanceReconcileEntry[] = state.accounts.flatMap((account) => {
@@ -209,7 +203,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
     if (key === 'reminderMode') return ({ punish: '神罚模式', balanced: '平衡提醒', light: '轻提醒', strict: '详细提醒' } as Record<string, string>)[String(value)];
     if (key === 'providerIconStyle') return ({ logo: '品牌图标', badge: '字符徽章' } as Record<string, string>)[String(value)];
     if (typeof value === 'boolean') return value ? '开启' : '关闭';
-    return key === 'essentialMonthlyExpenses' ? `¥${value}` : `${value}`;
+    return `${value}`;
   };
   const createBackupFile = async (): Promise<string> => {
     const raw = await AsyncStorage.getItem('strict-ledger/state') ?? await AsyncStorage.getItem('strict-ledger/state.tmp');
@@ -267,8 +261,9 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
         {state.accounts.length > 0 && <Pressable onPress={openReconcile} accessibilityRole="button" style={styles.inlineAction}><Ionicons name="calculator-outline" size={17} color={colors.accent} /><Text style={styles.actionText}>校准账户余额</Text></Pressable>}
         {state.accounts.length > 0 && <Text style={styles.lastReconcile}>{lastReconcile ? `上次校准：${formatReconcileDate(lastReconcile.occurredAt)}，调整 ${formatSignedMoney(lastReconcile.totalAdjustment)}` : '尚未校准账户余额'}</Text>}
       </>)}
-      {accordion('salary', '工资', '底薪、转正、补贴与预算预留', <><WorkSettingsSection section="salary" profile={settings.work} reducedMotion={settings.reducedMotion} onChange={onUpdateWorkProfile} />{renderRow('essentialMonthlyExpenses')}</>, isDefaultWorkProfile(settings.work) ? '默认值 · 待确认' : undefined)}
+      {accordion('salary', '工资', '底薪、试用期、补贴与发薪', <WorkSettingsSection section="salary" profile={settings.work} reducedMotion={settings.reducedMotion} onChange={onUpdateWorkProfile} />, isDefaultWorkProfile(settings.work) ? '默认值 · 待确认' : undefined)}
       {accordion('accountMapping', '账户映射', '把账单里的支付账户名关联到应用账户', <AccountMappingSection labels={accountMappingLabels} accounts={state.accounts} mapping={settings.accountMapping} reducedMotion={settings.reducedMotion} onChange={(accountMapping) => onUpdateSettings({ accountMapping })} />)}
+      {accordion('essentials', '每月固定花费', '吃住、会员与其他每月固定支出', <EssentialItemsSection items={settings.essentialItems} reducedMotion={settings.reducedMotion} onChange={(items) => onUpdateSettings({ essentialItems: items, essentialMonthlyExpenses: essentialItemsTotal(items) })} />, '合计 ¥' + essentialItemsTotal(settings.essentialItems).toFixed(2))}
       {accordion('attendance', '考勤', '月休、每天工时与考勤日历', <><WorkSettingsSection section="attendance" profile={settings.work} reducedMotion={settings.reducedMotion} onChange={onUpdateWorkProfile} /><Pressable onPress={() => setPage('attendance')} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>考勤日历</Text><Text style={styles.rowValue}>查看 ›</Text></Pressable></>)}
       {accordion('reminders', '提醒偏好', '现金流与消费提醒', <>{renderRow('riskCardMode')}{renderRow('reminderMode')}</>)}
       <Pressable onPress={() => setPage('settings')} accessibilityRole="button" style={({ pressed }) => [styles.settingsEntry, pressed && styles.pressed]}>
@@ -293,7 +288,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.sheetTitle}>{activeKey ? definitions[activeKey]?.title : ''}</Text>
         <Text style={styles.description}>{activeKey ? definitions[activeKey]?.description : ''}</Text>
-        {activeKey && definitions[activeKey]?.numeric ? <><TextInput value={numberValue} onChangeText={setNumberValue} keyboardType="decimal-pad" style={styles.input} /><View style={styles.actions}><Text onPress={() => setActiveKey(null)} style={styles.cancel}>取消</Text><Text onPress={saveNumber} style={styles.save}>保存</Text></View></> : activeKey && definitions[activeKey]?.choices?.map((choice) => <Pressable key={String(choice.value)} onPress={() => saveChoice(activeKey, choice.value)} style={styles.option}><Text style={styles.optionLabel}>{choice.label}</Text>{settings[activeKey] === choice.value && <Text style={styles.selected}>已选择</Text>}</Pressable>)}
+        {activeKey && definitions[activeKey]?.choices?.map((choice) => <Pressable key={String(choice.value)} onPress={() => saveChoice(activeKey, choice.value)} style={styles.option}><Text style={styles.optionLabel}>{choice.label}</Text>{settings[activeKey] === choice.value && <Text style={styles.selected}>已选择</Text>}</Pressable>)}
       </View></View>
     </Modal>
     <Modal visible={!!integration} transparent animationType={settings.reducedMotion ? 'none' : 'fade'} onRequestClose={() => setIntegration(null)}>

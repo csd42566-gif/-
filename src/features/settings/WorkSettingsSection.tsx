@@ -2,16 +2,15 @@ import React, { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WorkProfile } from '../../core/model/finance';
 import { colors, spacing, radius } from '../../ui/theme';
-import { isValidDateKey, mealAllowanceAmount, withMealAllowance } from './workSettings';
+import { mealAllowanceAmount, probationPeriodEnd, withMealAllowance, withProbationPeriod } from './workSettings';
 
 type WorkFieldKey =
   | 'monthlyIncome'
   | 'probationIncome'
-  | 'regularStartDate'
+  | 'probationPeriod'
   | 'restDaysPerMonth'
   | 'workHoursPerDay'
   | 'payday'
-  | 'cycleStartDay'
   | 'fullAttendanceBonus'
   | 'mealAllowance';
 
@@ -24,11 +23,10 @@ type WorkField = {
 };
 
 const fields: WorkField[] = [
-  { key: 'monthlyIncome', section: 'salary', title: '转正底薪', description: '只作为日薪基数，不包含餐补和全勤奖。', keyboardType: 'decimal-pad' },
   { key: 'probationIncome', section: 'salary', title: '试用期底薪', description: '试用期工资周期的日薪基数。', keyboardType: 'decimal-pad' },
-  { key: 'regularStartDate', section: 'salary', title: '转正日', description: '格式 YYYY-MM-DD；周期起点早于该日期时按试用期计算。' },
+  { key: 'monthlyIncome', section: 'salary', title: '转正底薪', description: '只作为日薪基数，不包含餐补和全勤奖。', keyboardType: 'decimal-pad' },
+  { key: 'probationPeriod', section: 'salary', title: '试用期时间', description: '填写试用期开始和结束日期；周期起始日和转正日会自动推导。' },
   { key: 'payday', section: 'salary', title: '发薪日', description: '填写每月发薪日，如 15。', keyboardType: 'number-pad' },
-  { key: 'cycleStartDay', section: 'salary', title: '周期起始日', description: '如 10，表示每月 10 日到次月 9 日。', keyboardType: 'number-pad' },
   { key: 'mealAllowance', section: 'salary', title: '餐补', description: '转正后固定发放，不计入日薪基数。', keyboardType: 'decimal-pad' },
   { key: 'fullAttendanceBonus', section: 'salary', title: '全勤奖', description: '转正且全勤达成时单独发放。', keyboardType: 'decimal-pad' },
   { key: 'restDaysPerMonth', section: 'attendance', title: '月休天数', description: '用于计算周期应出勤天数。', keyboardType: 'number-pad' },
@@ -43,11 +41,13 @@ export function WorkSettingsSection({ profile, section, reducedMotion, onChange 
 }) {
   const [activeField, setActiveField] = useState<WorkField | null>(null);
   const [input, setInput] = useState('');
+  const [endInput, setEndInput] = useState('');
   const [error, setError] = useState('');
 
   const open = (field: WorkField) => {
     setActiveField(field);
     setInput(inputValue(profile, field.key));
+    setEndInput(probationPeriodEnd(profile));
     setError('');
   };
 
@@ -61,6 +61,13 @@ export function WorkSettingsSection({ profile, section, reducedMotion, onChange 
         return;
       }
       patch = { allowances: withMealAllowance(profile, value).allowances };
+    } else if (activeField.key === 'probationPeriod') {
+      const next = withProbationPeriod(profile, input.trim(), endInput.trim());
+      if (!next) {
+        setError(fieldError(activeField.key));
+        return;
+      }
+      patch = { probationStartDate: next.probationStartDate, cycleStartDay: next.cycleStartDay, regularStartDate: next.regularStartDate };
     } else {
       const parsed = parseField(activeField.key, input);
       if (!parsed) {
@@ -87,15 +94,20 @@ export function WorkSettingsSection({ profile, section, reducedMotion, onChange 
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.title}>{activeField?.title ?? ''}</Text>
         <Text style={styles.description}>{activeField?.description ?? ''}</Text>
-        <TextInput
+        {activeField?.key === 'probationPeriod' ? <>
+          <Text style={styles.fieldLabel}>开始日期</Text>
+          <TextInput autoFocus value={input} onChangeText={setInput} placeholder="2026-10-10" placeholderTextColor={colors.muted} style={styles.input} />
+          <Text style={styles.fieldLabel}>结束日期</Text>
+          <TextInput value={endInput} onChangeText={setEndInput} placeholder="2026-11-09" placeholderTextColor={colors.muted} style={styles.input} />
+        </> : <TextInput
           autoFocus
           value={input}
           onChangeText={setInput}
           keyboardType={activeField?.keyboardType}
-          placeholder={activeField?.key === 'regularStartDate' ? '2026-11-10' : '请输入数值'}
+          placeholder={activeField?.key === 'mealAllowance' ? '例如：500' : '请输入数值'}
           placeholderTextColor={colors.muted}
           style={styles.input}
-        />
+        />}
         {!!error && <Text style={styles.error}>{error}</Text>}
         <View style={styles.actions}>
           <Pressable onPress={() => setActiveField(null)}><Text style={styles.cancel}>取消</Text></Pressable>
@@ -107,7 +119,7 @@ export function WorkSettingsSection({ profile, section, reducedMotion, onChange 
 }
 
 function inputValue(profile: WorkProfile, key: WorkFieldKey): string {
-  if (key === 'regularStartDate') return profile.regularStartDate ?? '';
+  if (key === 'probationPeriod') return profile.probationStartDate ?? '';
   if (key === 'probationIncome') return String(profile.probationIncome ?? profile.monthlyIncome);
   if (key === 'fullAttendanceBonus') return String(profile.fullAttendanceBonus ?? 0);
   if (key === 'mealAllowance') return String(mealAllowanceAmount(profile));
@@ -115,7 +127,7 @@ function inputValue(profile: WorkProfile, key: WorkFieldKey): string {
 }
 
 function displayValue(profile: WorkProfile, key: WorkFieldKey): string {
-  if (key === 'regularStartDate') return profile.regularStartDate ?? '未设置';
+  if (key === 'probationPeriod') return (profile.probationStartDate ?? '未设置') + ' ~ ' + (probationPeriodEnd(profile) || '未设置');
   if (key === 'mealAllowance') return `¥${mealAllowanceAmount(profile).toFixed(2)}`;
   if (key === 'fullAttendanceBonus') return `¥${(profile.fullAttendanceBonus ?? 0).toFixed(2)}`;
   if (key === 'monthlyIncome' || key === 'probationIncome') return `¥${Number(profile[key] ?? profile.monthlyIncome).toFixed(2)}`;
@@ -126,12 +138,11 @@ function displayValue(profile: WorkProfile, key: WorkFieldKey): string {
 
 function parseField(key: WorkFieldKey, raw: string): Partial<WorkProfile> | null {
   const text = raw.trim();
-  if (key === 'regularStartDate') return isValidDateKey(text) ? { regularStartDate: text } : null;
   const value = Number(text);
   if (!Number.isFinite(value)) return null;
   if (key === 'restDaysPerMonth') return Number.isInteger(value) && value >= 0 && value <= 31 ? { restDaysPerMonth: value } : null;
   if (key === 'workHoursPerDay') return value > 0 && value <= 24 ? { workHoursPerDay: value } : null;
-  if (key === 'payday' || key === 'cycleStartDay') return Number.isInteger(value) && value >= 1 && value <= 31 ? { [key]: value } : null;
+  if (key === 'payday') return Number.isInteger(value) && value >= 1 && value <= 31 ? { payday: value } : null;
   if (key === 'monthlyIncome' || key === 'probationIncome') return value > 0 ? { [key]: value } : null;
   if (key === 'fullAttendanceBonus') return value >= 0 ? { fullAttendanceBonus: value } : null;
   return null;
@@ -139,8 +150,8 @@ function parseField(key: WorkFieldKey, raw: string): Partial<WorkProfile> | null
 
 
 function fieldError(key: WorkFieldKey): string {
-  if (key === 'regularStartDate') return '请输入真实日期，格式 YYYY-MM-DD。';
-  if (key === 'payday' || key === 'cycleStartDay') return '请输入 1 到 31 之间的整数。';
+  if (key === 'probationPeriod') return '请输入真实日期，且结束日期不能早于开始日期。';
+  if (key === 'payday') return '请输入 1 到 31 之间的整数。';
   if (key === 'restDaysPerMonth') return '请输入 0 到 31 之间的整数。';
   if (key === 'workHoursPerDay') return '请输入大于 0 且不超过 24 的小时数。';
   return '请输入有效且不小于 0 的金额。';
@@ -155,6 +166,7 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md, padding: spacing.lg, paddingBottom: 30 },
   title: { fontSize: 18, fontWeight: '900', color: colors.ink },
   description: { fontSize: 12, lineHeight: 18, color: colors.muted, marginTop: 8, marginBottom: 12 },
+  fieldLabel: { fontSize: 11, color: colors.muted, marginTop: 10, marginBottom: 6 },
   input: { height: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: 12, color: colors.ink, fontSize: 16 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 24, marginTop: 18 },
   cancel: { fontSize: 13, color: colors.muted },

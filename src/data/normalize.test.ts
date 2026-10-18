@@ -19,6 +19,7 @@ describe('ledger state migration', () => {
         reminderMode: 'strict',
         monthlyIncome: expect.any(Number),
         essentialMonthlyExpenses: expect.any(Number),
+        essentialItems: expect.any(Array),
         workDaysPerMonth: expect.any(Number),
         workHoursPerDay: expect.any(Number),
         strictMode: expect.any(Boolean),
@@ -44,6 +45,7 @@ describe('ledger state migration', () => {
     });
 
     expect(normalized.settings.work.regularStartDate).toBe('2026-11-10');
+    expect(normalized.settings.work.probationStartDate).toBe('2026-10-10');
     expect(normalized.settings.work).not.toHaveProperty('probationEndDate');
   });
 
@@ -67,6 +69,32 @@ describe('ledger state migration', () => {
 
     expect(normalized.settings.providerIconStyle).toBe('logo');
   });
+  test('migrates legacy essential monthly expenses into an Other item', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [], transactions: [], debts: [], goal: null,
+      settings: { essentialMonthlyExpenses: 1500 },
+    });
+
+    expect(normalized.settings.essentialItems).toEqual([{ id: 'legacy-other', name: '其他', amount: 1500 }]);
+    expect(normalized.settings.essentialMonthlyExpenses).toBe(1500);
+  });
+
+  test('uses essential item details as the source of the monthly total', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [], transactions: [], debts: [], goal: null,
+      settings: {
+        essentialMonthlyExpenses: 999,
+        essentialItems: [
+          { id: 'food', name: '吃', amount: 20 },
+          { id: 'video', name: '视频会员', amount: 25 },
+        ],
+      },
+    });
+
+    expect(normalized.settings.essentialItems).toHaveLength(2);
+    expect(normalized.settings.essentialMonthlyExpenses).toBe(45);
+  });
+
   test('sanitizes account mapping and drops invalid entries', () => {
     const normalized = normalizeLedgerState({
       accounts: [], transactions: [], debts: [], goal: null,

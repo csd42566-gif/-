@@ -15,6 +15,7 @@ export interface InstallmentPeriod{number:number;dueDate:string;principalAmount:
 export interface InstallmentPlan{remainingPrincipal:number;totalPeriods:number;paidPeriods:number;annualRate?:number;repaymentType:'annuity'|'equal-principal'|'fixed-payment'|'manual';periods:InstallmentPeriod[]}
 export interface Debt{id:string;name:string;amount:number;dueDate:string;minimumPayment?:number;kind:'credit'|'bill'|'loan'|'personal';repaymentMode:RepaymentMode;installment?:InstallmentPlan}
 export interface Goal{id:string;name:string;targetAmount:number;startBalance:number;startBalanceAt:string;deadline:string}
+export interface EssentialItem{id:string;name:string;amount:number}
 
 export type AllowanceMode='per-day'|'fixed';
 export type AllowancePhase='probation'|'regular'|'both';
@@ -23,6 +24,7 @@ export interface Allowance{name:string;amount:number;mode:AllowanceMode;phase:Al
 export interface WorkProfile{
   monthlyIncome:number;
   probationIncome?:number;
+  probationStartDate?:string;
   regularStartDate?:string;
   restDaysPerMonth:number;
   workHoursPerDay:number;
@@ -40,6 +42,7 @@ export interface Settings{
   /** @deprecated Use settings.work.monthlyIncome. */
   monthlyIncome:number;
   essentialMonthlyExpenses:number;
+  essentialItems:EssentialItem[];
   /** @deprecated Budget work days are derived from settings.work and attendance. */
   workDaysPerMonth:number;
   /** @deprecated Use settings.work.workHoursPerDay. */
@@ -57,6 +60,7 @@ export interface LedgerState{accounts:Account[];transactions:Transaction[];pendi
 export const defaultWorkProfile: WorkProfile = {
   monthlyIncome: 5000,
   probationIncome: 5000,
+  probationStartDate: '2026-10-10',
   regularStartDate: '2026-11-10',
   restDaysPerMonth: 4,
   workHoursPerDay: 8,
@@ -73,7 +77,11 @@ export const defaultSettings: Settings = {
   reminderMode: 'punish',
   providerIconStyle: 'logo',
   monthlyIncome: 15000,
-  essentialMonthlyExpenses: 1500,
+  essentialMonthlyExpenses: 0,
+  essentialItems: [
+    { id: 'food', name: '吃', amount: 0 },
+    { id: 'housing', name: '住', amount: 0 },
+  ],
   workDaysPerMonth: 22,
   workHoursPerDay: 8,
   strictMode: false,
