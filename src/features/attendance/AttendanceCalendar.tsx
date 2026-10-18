@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ThemedModal } from '../../ui/components/ThemedModal';
+import React, { useState , useMemo } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LedgerState } from '../../core/model/finance';
 import { calculateEarnings } from '../../core/work/attendance';
-import { colors, radius, spacing } from '../../ui/theme';
+import { radius, spacing, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 import { localDateKey } from './attendance';
 import { buildMonthMatrix } from './calendarGrid';
 import { applyTimeToDateKey, defaultClockInTime, durationHours, formatClockTimeInput, parseClockTimeInput } from './calendarTime';
@@ -13,6 +15,8 @@ export function AttendanceCalendar({ state, onBack, onClockIn, onMarkRest }: {
   onClockIn: (at: Date) => Promise<void>;
   onMarkRest: (at: Date) => Promise<void>;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [selectedDate, setSelectedDate] = useState(localDateKey(now));
@@ -129,7 +133,7 @@ export function AttendanceCalendar({ state, onBack, onClockIn, onMarkRest }: {
       </View>
     </View>}
   </ScrollView>
-    <Modal visible={clockInModalOpen} transparent animationType={state.settings.reducedMotion ? 'none' : 'fade'} onRequestClose={() => setClockInModalOpen(false)}>
+    <ThemedModal visible={clockInModalOpen} transparent animationType={state.settings.motionLevel === 'standard' ? 'none' : 'fade'} onRequestClose={() => setClockInModalOpen(false)}>
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.sheetTitle}>{formatDateLabel(selectedDate)} 上班时间</Text>
         <TextInput value={clockInTime} onChangeText={updateClockInTime} keyboardType="number-pad" maxLength={5} placeholder="HH:MM" placeholderTextColor={colors.muted} style={styles.timeInput} />
@@ -139,7 +143,7 @@ export function AttendanceCalendar({ state, onBack, onClockIn, onMarkRest }: {
           <Pressable disabled={!clockInTimeValid || busy} onPress={() => { void confirmClockIn(); }} style={[styles.confirmButton, (!clockInTimeValid || busy) && styles.disabled]}><Text style={styles.confirmText}>确认</Text></Pressable>
         </View>
       </View></View>
-    </Modal>
+    </ThemedModal>
   </>;
 }
 
@@ -160,7 +164,8 @@ function formatDateLabel(dateKey: string): string {
   return `${Number(month)} 月 ${Number(day)} 日`;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xl },
   back: { minHeight: 40, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: spacing.sm },
@@ -207,4 +212,10 @@ const styles = StyleSheet.create({
   error: { fontSize: 11, color: colors.danger, marginTop: spacing.sm },
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.7 }, backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, paddingBottom: spacing.xl }, sheetTitle: { fontSize: 18, fontWeight: '900', color: colors.ink, fontVariant: ['tabular-nums'] }, timeInput: { height: 52, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: spacing.md, color: colors.ink, fontSize: 20, fontVariant: ['tabular-nums'] }, modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg }, cancelButton: { minHeight: 44, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: colors.soft }, cancelText: { fontSize: 12, color: colors.ink, fontWeight: '700' }, confirmButton: { minHeight: 44, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: colors.accent }, confirmText: { fontSize: 12, color: colors.surface, fontWeight: '800' },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.soft, colors.surface, colors.warning]);
+}

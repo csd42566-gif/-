@@ -1,4 +1,7 @@
 import { defaultWorkProfile, WorkProfile } from '../../core/model/finance';
+import { addLocalDays, isValidDateKey, normalizeDateKey, parseLocalDateKey } from '../../core/time/dateKey';
+
+export { isValidDateKey } from '../../core/time/dateKey';
 
 const MEAL_ALLOWANCE_NAME = '餐补';
 
@@ -15,43 +18,22 @@ export function withMealAllowance(profile: WorkProfile, amount: number): WorkPro
   return { ...profile, allowances };
 }
 
-export function isValidDateKey(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(year, month - 1, day, 12);
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-}
 export function probationPeriodEnd(profile: WorkProfile): string {
-  const regularStart = parseDateKey(profile.regularStartDate ?? '');
-  if (!regularStart) return '';
-  regularStart.setDate(regularStart.getDate() - 1);
-  return formatDateKey(regularStart);
+  return addLocalDays(profile.regularStartDate ?? '', -1) ?? '';
 }
 
 export function withProbationPeriod(profile: WorkProfile, startDate: string, endDate: string): WorkProfile | null {
-  const start = parseDateKey(startDate);
-  const end = parseDateKey(endDate);
-  if (!start || !end || endDate < startDate) return null;
-  end.setDate(end.getDate() + 1);
+  const normalizedStart = normalizeDateKey(startDate);
+  const normalizedEnd = normalizeDateKey(endDate);
+  const start = parseLocalDateKey(startDate);
+  const regularStartDate = normalizedEnd ? addLocalDays(normalizedEnd, 1) : null;
+  if (!normalizedStart || !normalizedEnd || !start || !regularStartDate || normalizedEnd < normalizedStart) return null;
   return {
     ...profile,
-    probationStartDate: startDate,
+    probationStartDate: normalizedStart,
     cycleStartDay: start.getDate(),
-    regularStartDate: formatDateKey(end),
+    regularStartDate,
   };
-}
-
-function parseDateKey(value: string): Date | null {
-  if (!isValidDateKey(value)) return null;
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day, 12);
-}
-
-function formatDateKey(date: Date): string {
-  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
 }
 
 export function isDefaultWorkProfile(profile: WorkProfile): boolean {

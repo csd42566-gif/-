@@ -25,6 +25,7 @@ describe('ledger state migration', () => {
         strictMode: expect.any(Boolean),
         repaymentReminders: expect.any(Boolean),
         reducedMotion: expect.any(Boolean),
+        motionLevel: 'enhanced',
         hapticsEnabled: true,
         providerIconStyle: 'logo',
         accountMapping: {},
@@ -48,6 +49,16 @@ describe('ledger state migration', () => {
     expect(normalized.settings.work.regularStartDate).toBe('2026-11-10');
     expect(normalized.settings.work.probationStartDate).toBe('2026-10-10');
     expect(normalized.settings.work).not.toHaveProperty('probationEndDate');
+  });
+
+  test('normalizes loose work date keys before storing them', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [], transactions: [], debts: [], goal: null,
+      settings: { work: { probationStartDate: '2026-1-1', regularStartDate: '20260110' } },
+    });
+
+    expect(normalized.settings.work.probationStartDate).toBe('2026-01-01');
+    expect(normalized.settings.work.regularStartDate).toBe('2026-01-10');
   });
 
   test('migrates legacy goal progress and debt repayment mode', () => {
@@ -94,6 +105,27 @@ describe('ledger state migration', () => {
 
     expect(normalized.settings.essentialItems).toHaveLength(2);
     expect(normalized.settings.essentialMonthlyExpenses).toBe(45);
+  });
+
+  test('migrates balanced and light reminder modes to normal', () => {
+    const balanced = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { reminderMode: 'balanced' } });
+    const light = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { reminderMode: 'light' } });
+    expect(balanced.settings.reminderMode).toBe('normal');
+    expect(light.settings.reminderMode).toBe('normal');
+  });
+
+  test('migrates legacy strictMode under normal into strict', () => {
+    const normalized = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { reminderMode: 'normal', strictMode: true } });
+    expect(normalized.settings.reminderMode).toBe('strict');
+  });
+
+  test('migrates reducedMotion into motionLevel and preserves explicit levels', () => {
+    const reduced = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { reducedMotion: true } });
+    const full = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { reducedMotion: false } });
+    const superLevel = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { motionLevel: 'super', reducedMotion: true } });
+    expect(reduced.settings.motionLevel).toBe('standard');
+    expect(full.settings.motionLevel).toBe('enhanced');
+    expect(superLevel.settings.motionLevel).toBe('super');
   });
 
   test('defaults haptics on for old data and preserves an explicit opt-out', () => {

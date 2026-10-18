@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState , useMemo } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Debt, LedgerState, RepaymentMode } from '../../core/model/finance';
 import { daysUntil } from '../../core/finance/calculations';
 import { deriveFinancials } from '../../core/finance/derive';
 import { calculateEarnings } from '../../core/work/attendance';
-import { colors, spacing, radius } from '../../ui/theme';
+import { spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
+import { ThemedModal } from '../../ui/components/ThemedModal';
 import { PressableCard } from '../../ui/components/PressableCard';
 import { SectionTitle } from '../../ui/components/SectionTitle';
 import { RepaymentProvider } from '../repayment-import/parsers';
@@ -12,6 +14,7 @@ import { InstallmentDraft } from '../repayment-import/installments';
 import { RepaymentImportOutcome, RepaymentImportSheet } from '../repayment-import/RepaymentImportSheet';
 
 export function DebtsScreen({ state, onImportRepayment, onImportInstallment, onUpdateRepaymentMode }: { state: LedgerState; onImportRepayment: (provider: RepaymentProvider, text: string) => Promise<RepaymentImportOutcome>; onImportInstallment: (provider: RepaymentProvider, draft: InstallmentDraft) => Promise<RepaymentImportOutcome>; onUpdateRepaymentMode: (debtId: string, mode: RepaymentMode) => Promise<void> }) {
+  const styles = useStyles();
   const [selected, setSelected] = useState<Debt | null>(null);
   const [importVisible, setImportVisible] = useState(false);
   const now = new Date();
@@ -88,7 +91,7 @@ export function DebtsScreen({ state, onImportRepayment, onImportInstallment, onU
 
     <RepaymentImportSheet visible={importVisible} onClose={() => setImportVisible(false)} onImport={onImportRepayment} onImportInstallment={onImportInstallment} />
 
-    <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
+    <ThemedModal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={() => setSelected(null)} accessibilityLabel="关闭详情" />
         {selected && <View style={styles.sheet}>
@@ -115,11 +118,12 @@ export function DebtsScreen({ state, onImportRepayment, onImportInstallment, onU
           <Pressable style={styles.closeButton} onPress={() => setSelected(null)}><Text style={styles.closeText}>完成</Text></Pressable>
         </View>}
       </View>
-    </Modal>
+    </ThemedModal>
   </>;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return <View style={styles.summaryRow}><Text style={styles.summaryLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>;
 }
 
@@ -127,7 +131,8 @@ function formatDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: 32 },
   kicker: { fontSize: 12, color: colors.muted },
@@ -172,4 +177,10 @@ const styles = StyleSheet.create({
   importButton: { marginTop: spacing.lg, marginBottom: spacing.sm, minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface },
   importText: { fontSize: 11, fontWeight: '800', color: colors.accent },
   pressed: { transform: [{ scale: 0.97 }], opacity: 0.88 },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.dangerSoft, colors.ink, colors.line, colors.muted, colors.overlay, colors.success, colors.surface, colors.warning]);
+}

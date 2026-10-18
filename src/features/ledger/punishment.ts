@@ -11,13 +11,19 @@ export interface PunishmentResult {
   hoursOfWork: number;
 }
 
+// 本地估算接口；后续接入算力 API 时只替换此函数实现。
+export function estimateWorkCost(amount: number, hourlySalary: number): number {
+  if (!Number.isFinite(amount) || !Number.isFinite(hourlySalary) || amount <= 0 || hourlySalary <= 0) return 0;
+  return amount / hourlySalary;
+}
+
 export function evaluateTransaction(input: {
   draft: { amount: number; type: TransactionType; budgetGroup?: BudgetGroup };
   earnings: EarningsResult;
   financials: DerivedFinancials;
 }): PunishmentResult {
   const { draft, earnings, financials } = input;
-  const hoursRaw = earnings.hourlySalary > 0 ? draft.amount / earnings.hourlySalary : 0;
+  const hoursRaw = estimateWorkCost(draft.amount, earnings.hourlySalary);
   const hoursOfWork = round(hoursRaw);
   const amount = formatAmount(draft.amount);
   const hours = hoursRaw.toFixed(1);

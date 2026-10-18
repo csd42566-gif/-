@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ThemedModal } from '../../ui/components/ThemedModal';
+import React, { useEffect, useState , useMemo } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LedgerState } from '../../core/model/finance';
-import { colors, spacing, radius } from '../../ui/theme';
+import { spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 import { PickedStatementFile, pickStatementFile, readStatementAsset } from './readStatementFile';
 import { ModuleInboxFile, nativeFinance } from '../../integrations/notifications/nativeFinance';
 import { previewStatement, StatementImportSummary } from './statementImport';
@@ -13,6 +15,7 @@ interface Props {
   state: LedgerState;
   onClose: () => void;
   onImport: (provider: StatementProvider, text: string) => Promise<StatementImportSummary>;
+  onCreateQuickAccount: (sourceLabel: string) => Promise<unknown>;
 }
 
 const providerChoices: StatementProvider[] = ['alipay', 'wechat', 'cmb', 'icbc', 'ccb', 'boc', 'citic', 'other'];
@@ -29,7 +32,8 @@ function describeError(error: unknown): string {
   return errorMessages[message] ?? '导入失败，请检查账单文件后重试。';
 }
 
-export function StatementImportSheet({ visible, state, onClose, onImport }: Props) {
+export function StatementImportSheet({ visible, state, onClose, onImport, onCreateQuickAccount }: Props) {
+  const styles = useStyles();
   const [provider, setProvider] = useState<StatementProvider>('alipay');
   const [fileName, setFileName] = useState('');
   const [text, setText] = useState('');
@@ -39,6 +43,7 @@ export function StatementImportSheet({ visible, state, onClose, onImport }: Prop
   const [busy, setBusy] = useState(false);
   const [inboxFiles, setInboxFiles] = useState<ModuleInboxFile[]>([]);
   const [inboxMessage, setInboxMessage] = useState('');
+  const [creatingAccount, setCreatingAccount] = useState(false);
 
   useEffect(() => {
     if (visible) return;
@@ -95,6 +100,18 @@ export function StatementImportSheet({ visible, state, onClose, onImport }: Prop
   };
 
   const importableInbox = inboxFiles.filter((file) => /\.(csv|tsv|xls|xlsx)$/i.test(file.displayName));
+  const createAccountForProvider = async () => {
+    if (creatingAccount) return;
+    setCreatingAccount(true);
+    setError('');
+    try {
+      await onCreateQuickAccount(statementProviderLabels[provider]);
+    } catch {
+      setError('创建账户失败，请重试。');
+    } finally {
+      setCreatingAccount(false);
+    }
+  };
 
   const submit = async () => {
     if (!text || !summary || summary.importableCount === 0 || busy) return;
@@ -112,13 +129,14 @@ export function StatementImportSheet({ visible, state, onClose, onImport }: Prop
     }
   };
 
-  return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+  return <ThemedModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <View style={styles.backdrop}>
       <Pressable style={styles.dismiss} onPress={onClose} accessibilityLabel="关闭账单导入" />
       <View style={styles.sheet}>
         <View style={styles.grab} />
         <ScrollView keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>导入账单</Text>
+          {!!message && !state.accounts.length && <View style={styles.accountNotice}><Text style={styles.accountNoticeText}>你的账还没有账户 · 先创建一个账户才能入账</Text><Pressable disabled={creatingAccount} onPress={() => { void createAccountForProvider(); }} accessibilityRole="button" style={[styles.accountNoticeAction, creatingAccount && styles.disabled]}><Text style={styles.accountNoticeActionText}>创建账户</Text></Pressable></View>}
           <Text style={styles.hint}>支持支付宝、微信、招商/工商/建设/中国/中信银行及常见 App 的 CSV/TSV/XLS/XLSX 账单。选择文件后先预览，确认后才写入账本。</Text>
           <View style={styles.choices}>
             {providerChoices.map((choice) => <Pressable key={choice} onPress={() => setProvider(choice)} accessibilityRole="button" accessibilityState={{ selected: provider === choice }} style={({ pressed }) => [styles.chip, provider === choice && styles.chipSelected, pressed && styles.pressed]}><Text style={[styles.chipText, provider === choice && styles.chipTextSelected]}>{statementProviderLabels[choice]}</Text></Pressable>)}
@@ -151,19 +169,25 @@ export function StatementImportSheet({ visible, state, onClose, onImport }: Prop
         </ScrollView>
       </View>
     </View>
-  </Modal>;
+  </ThemedModal>;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return <View style={styles.row}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}</Text></View>;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay },
   dismiss: { flex: 1 },
   sheet: { maxHeight: '88%', backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, paddingBottom: 28 },
   grab: { width: 40, height: 4, borderRadius: radius.sm, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 14 },
   title: { fontSize: 20, fontWeight: '900', color: colors.ink },
+  accountNotice: { marginTop: 12, padding: spacing.sm, borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, backgroundColor: colors.warningSoft, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  accountNoticeText: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.warning, fontWeight: '700' },
+  accountNoticeAction: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.surface },
+  accountNoticeActionText: { fontSize: 11, color: colors.accent, fontWeight: '800' },
   hint: { fontSize: 11, lineHeight: 17, color: colors.muted, marginTop: 6 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 },
   chip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface },
@@ -191,4 +215,10 @@ const styles = StyleSheet.create({
   primaryText: { color: colors.surface, fontSize: 13, fontWeight: '800' },
   disabled: { opacity: 0.45 },
   pressed: { transform: [{ scale: 0.97 }], opacity: 0.88 },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.success, colors.surface, colors.warning, colors.warningSoft]);
+}

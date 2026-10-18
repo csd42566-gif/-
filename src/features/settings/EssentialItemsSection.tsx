@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { EssentialItem } from '../../core/model/finance';
-import { colors, radius, spacing } from '../../ui/theme';
+import { ThemedModal } from '../../ui/components/ThemedModal';
+import React, { useState , useMemo } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { EssentialItem, MotionLevel } from '../../core/model/finance';
+import { radius, spacing, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 
 type EditingItem = EssentialItem & { isNew: boolean };
 
-export function EssentialItemsSection({ items, reducedMotion, onChange }: {
+export function EssentialItemsSection({ items, motionLevel, onChange }: {
   items: EssentialItem[];
-  reducedMotion: boolean;
+  motionLevel: MotionLevel;
   onChange: (items: EssentialItem[]) => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [editing, setEditing] = useState<EditingItem | null>(null);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -49,7 +53,7 @@ export function EssentialItemsSection({ items, reducedMotion, onChange }: {
     </View>)}
     {!items.length && <Text style={styles.empty}>还没有固定花费明细。</Text>}
     <Pressable onPress={startNew} accessibilityRole="button" style={({ pressed }) => [styles.add, pressed && styles.pressed]}><Text style={styles.addText}>＋ 添加固定花费</Text></Pressable>
-    <Modal visible={!!editing} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={() => setEditing(null)}>
+    <ThemedModal visible={!!editing} transparent animationType={motionLevel ? 'none' : 'fade'} onRequestClose={() => setEditing(null)}>
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.title}>{editing?.isNew ? '添加固定花费' : '编辑固定花费'}</Text>
         <Text style={styles.fieldLabel}>名称</Text>
@@ -59,11 +63,12 @@ export function EssentialItemsSection({ items, reducedMotion, onChange }: {
         {!!error && <Text style={styles.error}>{error}</Text>}
         <View style={styles.actions}><Pressable onPress={() => setEditing(null)} style={styles.action}><Text style={styles.cancel}>取消</Text></Pressable><Pressable onPress={save} style={styles.action}><Text style={styles.save}>保存</Text></Pressable></View>
       </View></View>
-    </Modal>
+    </ThemedModal>
   </>;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   row: { minHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: 'row', alignItems: 'center' },
   main: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   name: { fontSize: 12, color: colors.ink, flex: 1 },
@@ -84,4 +89,10 @@ const styles = StyleSheet.create({
   action: { minHeight: 40, justifyContent: 'center' },
   cancel: { fontSize: 13, color: colors.muted },
   save: { fontSize: 13, color: colors.accent, fontWeight: '800' },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.surface]);
+}

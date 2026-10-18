@@ -1,25 +1,30 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
+import { MotionLevel } from '../../core/model/finance';
+import { motion } from '../theme';
 
 type QPressableProps = Omit<PressableProps, 'style'> & {
   children: React.ReactNode;
-  reducedMotion: boolean;
+  motionLevel: MotionLevel;
   containerStyle: StyleProp<ViewStyle>;
   style?: PressableProps['style'];
 };
 
-export function QPressable({ children, reducedMotion, containerStyle, style, disabled, onPressIn, onPressOut, ...rest }: QPressableProps) {
+export function QPressable({ children, motionLevel, containerStyle, style, disabled, onPressIn, onPressOut, ...rest }: QPressableProps) {
+  const config = motion.levels[motionLevel];
   const scale = useRef(new Animated.Value(1)).current;
   useEffect(() => () => scale.stopAnimation(), [scale]);
   const pressIn = () => {
     scale.stopAnimation();
-    if (reducedMotion) { scale.setValue(1); return; }
-    Animated.timing(scale, { toValue: 0.96, duration: 120, useNativeDriver: true }).start();
+    Animated.timing(scale, { toValue: config.pressScale, duration: config.duration, useNativeDriver: true }).start();
   };
   const pressOut = () => {
     scale.stopAnimation();
-    if (reducedMotion) { scale.setValue(1); return; }
-    Animated.spring(scale, { toValue: 1, damping: 12, stiffness: 300, useNativeDriver: true }).start();
+    if (!config.spring) {
+      Animated.timing(scale, { toValue: 1, duration: config.duration, useNativeDriver: true }).start();
+      return;
+    }
+    Animated.spring(scale, { toValue: 1, ...config.spring, useNativeDriver: true }).start();
   };
   return <Animated.View style={[containerStyle, { transform: [{ scale }] }]}>
     <Pressable

@@ -1,4 +1,5 @@
 import { Account, Allowance, AttendanceRecord, Debt, defaultSettings, EssentialItem, Goal, LedgerState, PendingTransaction, Settings, Transaction, WorkProfile } from '../core/model/finance';
+import { normalizeDateKey } from '../core/time/dateKey';
 
 export function normalizeLedgerState(value: unknown): LedgerState {
   if (!value || typeof value !== 'object') throw new Error('ledger-state-invalid');
@@ -12,6 +13,8 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     : defaultSettings.providerIconStyle;
   const accountMapping = normalizeAccountMapping(rawSettings.accountMapping);
   const hapticsEnabled = rawSettings.hapticsEnabled !== false;
+  const motionLevel = normalizeMotionLevel(rawSettings);
+  const reminderMode = normalizeReminderMode(rawSettings);
   const essentialItems = normalizeEssentialItems(rawSettings.essentialItems, rawSettings.essentialMonthlyExpenses);
   const essentialMonthlyExpenses = essentialItemsTotal(essentialItems);
   const work = normalizeWorkProfile(rawSettings.work);
@@ -22,7 +25,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     debts: normalizeDebts(state.debts),
     goal: normalizeGoal(state.goal, Array.isArray(state.accounts) ? state.accounts : [], Array.isArray(state.transactions) ? state.transactions : []),
     attendance: normalizeAttendance(state.attendance),
-    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, hapticsEnabled, essentialItems, essentialMonthlyExpenses, providerIconStyle },
+    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, hapticsEnabled, motionLevel, reminderMode, essentialItems, essentialMonthlyExpenses, providerIconStyle },
   };
 }
 
@@ -80,6 +83,21 @@ function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function normalizeMotionLevel(settings: Partial<Settings>): 'super' | 'enhanced' | 'standard' {
+  if (settings.motionLevel === 'super' || settings.motionLevel === 'enhanced' || settings.motionLevel === 'standard') return settings.motionLevel;
+  return settings.reducedMotion === true ? 'standard' : 'enhanced';
+}
+
+function normalizeReminderMode(settings: Partial<Settings>): 'punish' | 'strict' | 'normal' {
+  const raw = settings.reminderMode as 'punish' | 'strict' | 'normal' | 'balanced' | 'light' | undefined;
+  const base = raw === 'punish' || raw === 'strict' || raw === 'normal'
+    ? raw
+    : raw === 'balanced' || raw === 'light'
+      ? 'normal'
+      : defaultSettings.reminderMode;
+  return settings.strictMode === true && base === 'normal' ? 'strict' : base;
+}
+
 function normalizeAccountMapping(value: unknown): Record<string, string> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value as Record<string, unknown>)
@@ -122,14 +140,13 @@ function normalizeWorkProfile(value: unknown): WorkProfile {
     ? value as Partial<WorkProfile> & { probationEndDate?: unknown }
     : {};
   const { probationEndDate: legacyRegularStartDate, ...work } = raw;
-  const regularStartDate = typeof raw.regularStartDate === 'string'
+  const regularStartCandidate = typeof raw.regularStartDate === 'string'
     ? raw.regularStartDate
     : typeof legacyRegularStartDate === 'string'
       ? legacyRegularStartDate
       : defaultSettings.work.regularStartDate;
-  const probationStartDate = typeof raw.probationStartDate === 'string'
-    ? raw.probationStartDate
-    : defaultSettings.work.probationStartDate;
+  const regularStartDate = normalizeDateKey(regularStartCandidate ?? '') ?? defaultSettings.work.regularStartDate;
+  const probationStartDate = normalizeDateKey(typeof raw.probationStartDate === 'string' ? raw.probationStartDate : '') ?? defaultSettings.work.probationStartDate;
   return {
     ...defaultSettings.work,
     ...work,

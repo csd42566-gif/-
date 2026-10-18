@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState , useMemo } from 'react';
 import { Alert, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LedgerState } from '../../core/model/finance';
+import { LedgerState, MotionLevel } from '../../core/model/finance';
 import { deriveFinancials } from '../../core/finance/derive';
 import { analyze } from '../../core/finance/analysis';
 import { calculateEarnings } from '../../core/work/attendance';
 import { ATTENDANCE_CLOCK_IN_REQUIRED, findPendingAttendanceRecord, localDateKey } from '../attendance/attendance';
-import { colors, spacing, radius } from '../../ui/theme';
+import { motion, spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 import { QPressable } from '../../ui/components/QPressable';
 
 interface HomeScreenProps {
@@ -22,6 +23,7 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onGoGoals, onGoDebts, onClockIn, onClockOut, onMarkRest, onUndoRest }: HomeScreenProps) {
+  const styles = useStyles();
   const [attendanceBusy, setAttendanceBusy] = useState(false);
   const [attendanceError, setAttendanceError] = useState('');
   const [attendanceFeedback, setAttendanceFeedback] = useState('');
@@ -40,15 +42,15 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
     if (lastAmountAnimationKey.current === amountAnimationKey) return;
     lastAmountAnimationKey.current = amountAnimationKey;
     heroOpacity.stopAnimation();
-    if (state.settings.reducedMotion) {
+    if (state.settings.motionLevel === 'standard') {
       heroOpacity.setValue(1);
       return;
     }
     heroOpacity.setValue(0);
-    const animation = Animated.timing(heroOpacity, { toValue: 1, duration: 200, useNativeDriver: true });
+    const animation = Animated.timing(heroOpacity, { toValue: 1, duration: motion.levels[state.settings.motionLevel].duration, useNativeDriver: true });
     animation.start();
     return () => animation.stop();
-  }, [amountAnimationKey, state.settings.reducedMotion, heroOpacity]);
+  }, [amountAnimationKey, state.settings.motionLevel, heroOpacity]);
   useEffect(() => () => heroOpacity.stopAnimation(), [heroOpacity]);
   useEffect(() => () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current); }, []);
   const attendance = state.attendance ?? [];
@@ -131,7 +133,7 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
         <Text style={styles.heroLabel}>今日可花</Text>
         <Animated.Text style={[styles.heroValue, financials.todaySpendable === 0 && styles.warningValue, { opacity: heroOpacity }]}>¥{financials.todaySpendable.toFixed(2)}</Animated.Text>
         <Text style={styles.balance}>可用账户 ¥{financials.availableBalance.toFixed(2)}</Text>
-        <QPressable onPress={onAdd} reducedMotion={state.settings.reducedMotion} containerStyle={styles.primaryActionWrap} style={styles.primaryAction} accessibilityRole="button">
+        <QPressable onPress={onAdd} motionLevel={state.settings.motionLevel} containerStyle={styles.primaryActionWrap} style={styles.primaryAction} accessibilityRole="button">
           <Text style={styles.primaryActionText}>＋ 记一笔</Text>
         </QPressable>
       </View>
@@ -155,11 +157,11 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
           tone={attendanceFeedback ? 'success' : resting ? 'rest' : completed ? 'muted' : activePending ? 'warning' : 'accent'}
           dashed={resting}
           disabled={attendanceBusy || completed || !!attendanceFeedback}
-          reducedMotion={state.settings.reducedMotion}
+          motionLevel={state.settings.motionLevel}
           onPress={resting ? () => { void runAttendanceAction(onUndoRest, '休息已撤销'); } : activePending ? confirmClockOut : () => { void runAttendanceAction(onClockIn, '上班已记录'); }}
         />
         {completed && !attendanceFeedback && <Text style={styles.attendanceReason}>{formatClockTime(todayRecord?.clockIn)} 上班 · {formatClockTime(todayRecord?.clockOut)} 下班</Text>}
-        {!resting && !completed && !activePending && !attendanceFeedback && <AttendanceButton variant="text" label="今天休息" disabled={attendanceBusy} reducedMotion={state.settings.reducedMotion} onPress={() => { void runAttendanceAction(onMarkRest, '休息已记录'); }} />}
+        {!resting && !completed && !activePending && !attendanceFeedback && <AttendanceButton variant="text" label="今天休息" disabled={attendanceBusy} motionLevel={state.settings.motionLevel} onPress={() => { void runAttendanceAction(onMarkRest, '休息已记录'); }} />}
         {!!attendanceError && <Text style={styles.attendanceError}>{attendanceError}</Text>}
       </View>
 
@@ -209,7 +211,7 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
   </View>
 }
 
-function AttendanceButton({ label, subLabel, variant, tone = 'accent', dashed, onPress, disabled, reducedMotion }: {
+function AttendanceButton({ label, subLabel, variant, tone = 'accent', dashed, onPress, disabled, motionLevel }: {
   label: string;
   subLabel?: string;
   variant: 'primary' | 'text';
@@ -217,18 +219,20 @@ function AttendanceButton({ label, subLabel, variant, tone = 'accent', dashed, o
   dashed?: boolean;
   onPress: () => void;
   disabled: boolean;
-  reducedMotion: boolean;
+  motionLevel: MotionLevel;
 }) {
+  const styles = useStyles();
   const scale = useRef(new Animated.Value(1)).current;
+  const config = motion.levels[motionLevel];
   const animateIn = () => {
     scale.stopAnimation();
-    if (reducedMotion) { scale.setValue(1); return; }
-    Animated.timing(scale, { toValue: 0.96, duration: 120, useNativeDriver: true }).start();
+    if (motionLevel === 'standard') { scale.setValue(1); return; }
+    Animated.timing(scale, { toValue: config.pressScale, duration: config.duration, useNativeDriver: true }).start();
   };
   const animateOut = () => {
     scale.stopAnimation();
-    if (reducedMotion) { scale.setValue(1); return; }
-    Animated.spring(scale, { toValue: 1, damping: 12, stiffness: 300, useNativeDriver: true }).start();
+    if (motionLevel === 'standard' || !config.spring) { scale.setValue(1); return; }
+    Animated.spring(scale, { toValue: 1, ...config.spring, useNativeDriver: true }).start();
   };
   useEffect(() => () => scale.stopAnimation(), [scale]);
   const isText = variant === 'text';
@@ -270,7 +274,8 @@ function formatClockTime(value?: string): string {
   return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') + ':' + String(date.getSeconds()).padStart(2, '0');
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xl },
   topMeta: { minHeight: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, borderRadius: radius.sm },
@@ -330,4 +335,10 @@ const styles = StyleSheet.create({
   riskTitle: { fontSize: 13, fontWeight: '800', color: colors.danger, fontVariant: ['tabular-nums'] },
   riskText: { fontSize: 11, color: colors.ink, lineHeight: 17, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
   pressed: { opacity: 0.75, transform: [{ scale: 0.98 }] },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.dangerSoft, colors.ink, colors.line, colors.muted, colors.soft, colors.success, colors.surface, colors.warning, colors.warningSoft]);
+}

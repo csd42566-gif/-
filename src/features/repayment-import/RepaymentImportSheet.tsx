@@ -1,7 +1,9 @@
+import { ThemedModal } from '../../ui/components/ThemedModal';
 import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PendingTransaction } from '../../core/model/finance';
-import { colors, spacing, radius } from '../../ui/theme';
+import { spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 import { RepaymentProvider } from './parsers';
 import { previewRepaymentText } from './repaymentImport';
 import { createInstallmentDraft, InstallmentDraft, InstallmentType, parseAlipayInstallmentText } from './installments';
@@ -55,6 +57,8 @@ function previewOf(provider: RepaymentProvider, text: string): { candidate?: Pen
 }
 
 export function RepaymentImportSheet({ visible, onClose, onImport, onImportInstallment }: Props) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [mode, setMode] = useState<'normal' | 'installment'>('normal');
   const [provider, setProvider] = useState<RepaymentProvider>('alipay');
   const [text, setText] = useState('');
@@ -144,7 +148,7 @@ export function RepaymentImportSheet({ visible, onClose, onImport, onImportInsta
   const firstPeriod = installmentDraft?.periods[0];
   const canSubmit = mode === 'installment' ? !!installmentDraft : !!preview.candidate;
 
-  return <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+  return <ThemedModal visible={visible} transparent animationType="slide" onRequestClose={close}>
     <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={styles.dismiss} onPress={close} accessibilityLabel="关闭导入" />
       <View style={styles.sheet}>
@@ -210,22 +214,27 @@ export function RepaymentImportSheet({ visible, onClose, onImport, onImportInsta
         </Pressable>
       </View>
     </KeyboardAvoidingView>
-  </Modal>;
+  </ThemedModal>;
 }
 
 function Choice({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) {
+  const styles = useStyles();
   return <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} style={[styles.chip, selected && styles.chipSelected]}><Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text></Pressable>;
 }
 
 function Field({ label, value, onChangeText, keyboardType, placeholder }: { label: string; value: string; onChangeText: (value: string) => void; keyboardType?: 'default' | 'decimal-pad' | 'number-pad'; placeholder?: string }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return <View style={styles.field}><Text style={styles.fieldLabel}>{label}</Text><TextInput value={value} onChangeText={onChangeText} keyboardType={keyboardType ?? 'default'} placeholder={placeholder} placeholderTextColor={colors.muted} style={styles.fieldInput} /></View>;
 }
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return <View style={styles.row}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}</Text></View>;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay },
   dismiss: { flex: 1 },
   sheet: { maxHeight: '92%', backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, paddingBottom: 28 },
@@ -256,4 +265,10 @@ const styles = StyleSheet.create({
   primaryText: { color: colors.surface, fontSize: 13, fontWeight: '800' },
   disabled: { opacity: 0.45 },
   pressed: { transform: [{ scale: 0.97 }], opacity: 0.88 },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.surface]);
+}

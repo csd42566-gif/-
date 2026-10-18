@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Account, LedgerState, PendingTransaction, ProviderIconStyle, Transaction, TransactionType } from '../../core/model/finance';
-import { colors, spacing, radius } from '../../ui/theme';
+import { spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
+import { ThemedModal } from '../../ui/components/ThemedModal';
 import { PressableCard } from '../../ui/components/PressableCard';
 import { ProviderBadge } from '../../ui/components/ProviderBadge';
 import { SectionTitle } from '../../ui/components/SectionTitle';
 import { StatementImportSummary } from '../statement-import/statementImport';
 import { StatementImportSheet } from '../statement-import/StatementImportSheet';
 import { StatementProvider } from '../statement-import/statementTypes';
+import { createAccount } from '../accounts/accounts';
 import { batchBlockedReason, batchSelectionState, BatchReviewResult, isBatchablePending, selectedBatchSummary } from './batchReview';
 
 type ReviewAction = 'accept' | 'dismiss';
@@ -16,13 +19,16 @@ type FilterType = 'all' | TransactionType;
 const manualProvider = '手动记账';
 const providerOrder = ['支付宝', '微信', '招商银行', '工商银行', '建设银行', '中国银行', '中信银行', '抖音', '得物', '京东', '美团', manualProvider];
 
-export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPending, onImportStatement }: {
+export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPending, onImportStatement, onCreateAccount }: {
   state: LedgerState;
   onAdd: () => void;
   onReviewPending: (id: string, action: ReviewAction, edits?: Partial<Pick<PendingTransaction, 'amount' | 'accountId' | 'category' | 'debtId' | 'counterparty'>>) => void;
   onBatchConfirmPending: (ids: Set<string>, accountOverrides?: ReadonlyMap<string, string>) => Promise<BatchReviewResult>;
   onImportStatement: (provider: StatementProvider, text: string) => Promise<StatementImportSummary>;
+  onCreateAccount: (account: Account) => Promise<void>;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [type, setType] = useState<FilterType>('all');
   const [accountId, setAccountId] = useState('all');
   const [period, setPeriod] = useState<'month' | 'all'>('month');
@@ -35,6 +41,7 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
   const [editDebtId, setEditDebtId] = useState('');
   const [editCounterparty, setEditCounterparty] = useState('');
   const [editError, setEditError] = useState('');
+  const [creatingEditAccount, setCreatingEditAccount] = useState(false);
   const [statementImportVisible, setStatementImportVisible] = useState(false);
   const now = new Date();
   const providers = useMemo(() => providerList(state.transactions), [state.transactions]);
@@ -72,6 +79,24 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
   };
   const editAccountValid = !!editing && state.accounts.some((account) => account.id === editAccountId);
   const editAmountValid = !!editing && Number.isFinite(Number(editAmount)) && Number(editAmount) > 0;
+  const createSourceAccount = async (sourceLabel: string): Promise<Account> => {
+    const account = createAccount({ name: sourceLabel.trim() || '账单账户', kind: 'wallet', balance: 0 });
+    await onCreateAccount(account);
+    return account;
+  };
+  const createEditAccount = async () => {
+    if (!editing || creatingEditAccount) return;
+    setCreatingEditAccount(true);
+    setEditError('');
+    try {
+      const account = await createSourceAccount(quickAccountName(editing));
+      setEditAccountId(account.id);
+    } catch {
+      setEditError('创建账户失败，请重试。');
+    } finally {
+      setCreatingEditAccount(false);
+    }
+  };
   const confirmPending = (item: PendingTransaction) => {
     if (!isPostable(item)) return;
     if (isRepayment(item) || !item.accountId || !state.accounts.some((account) => account.id === item.accountId)) beginEdit(item);
@@ -84,7 +109,7 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
       <View style={styles.summary}><Text style={styles.label}>当前筛选支出</Text><Text style={styles.total}>¥{expenseTotal.toFixed(2)}</Text><Text style={styles.caption}>转账独立记录，不计入收入或消费</Text></View>
       <Pressable onPress={() => setStatementImportVisible(true)} accessibilityRole="button" style={({ pressed }) => [styles.importButton, pressed && styles.pressed]}><Text style={styles.importButtonText}>导入账单</Text></Pressable>
 
-      <PendingReviewSection state={state} onReviewPending={onReviewPending} onBatchConfirmPending={onBatchConfirmPending} onBeginEdit={beginEdit} onConfirm={confirmPending} />
+      <PendingReviewSection state={state} onReviewPending={onReviewPending} onBatchConfirmPending={onBatchConfirmPending} onBeginEdit={beginEdit} onConfirm={confirmPending} onCreateQuickAccount={createSourceAccount} />
 
       <SectionTitle>账单来源</SectionTitle>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.providerFilters}>
@@ -111,12 +136,13 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
       <Pressable onPress={onAdd} accessibilityRole="button" style={styles.add}><Text style={styles.addText}>＋ 记一笔</Text></Pressable>
     </ScrollView>
 
-    <StatementImportSheet visible={statementImportVisible} state={state} onClose={() => setStatementImportVisible(false)} onImport={onImportStatement} />
-    <Modal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
+    <StatementImportSheet visible={statementImportVisible} state={state} onClose={() => setStatementImportVisible(false)} onImport={onImportStatement} onCreateQuickAccount={createSourceAccount} />
+    <ThemedModal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.sheetTitle}>{editing && isRepayment(editing) ? '核对还款记录' : '核对识别记录'}</Text>
         <Text style={styles.label}>记入账户</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={editAccountId === account.id} onPress={() => { setEditAccountId(account.id); setEditError(''); }} />)}</ScrollView>
+        {!state.accounts.length && <Pressable disabled={creatingEditAccount} onPress={() => { void createEditAccount(); }} accessibilityRole="button" style={[styles.quickAccount, creatingEditAccount && styles.disabled]}><Text style={styles.quickAccountText}>＋ 创建账户</Text></Pressable>}
         {!editAccountValid && <Text style={styles.error}>请先选择账户</Text>}
         {editing && isRepayment(editing) && <><Text style={styles.label}>对应欠款</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.debts.map((debt) => <Choice key={debt.id} label={debt.name + ' ¥' + debt.amount.toFixed(0)} selected={editDebtId === debt.id} onPress={() => setEditDebtId(debt.id)} />)}</ScrollView>{!state.debts.length && <Text style={styles.noticeText}>还没有欠款记录，先在“欠账”里添加后再确认还款。</Text>}</>}
         <Text style={styles.label}>金额</Text><TextInput value={editAmount} onChangeText={(value) => { setEditAmount(value); setEditError(''); }} keyboardType="decimal-pad" style={styles.input} />
@@ -125,17 +151,19 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
         {!!editError && <Text style={styles.error}>{editError}</Text>}
         <View style={styles.sheetActions}><Pressable onPress={() => setEditing(null)} style={styles.sheetAction}><Text style={styles.dismiss}>取消</Text></Pressable><Pressable disabled={!editAccountValid || !editAmountValid} onPress={commitEdit} style={[styles.sheetAction, (!editAccountValid || !editAmountValid) && styles.disabled]}><Text style={[styles.accept, (!editAccountValid || !editAmountValid) && styles.disabledText]}>确认并记账</Text></Pressable></View>
       </View></View>
-    </Modal>
+    </ThemedModal>
   </View>;
 }
 
-function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, onBeginEdit, onConfirm }: {
+function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, onBeginEdit, onConfirm, onCreateQuickAccount }: {
   state: LedgerState;
   onReviewPending: (id: string, action: ReviewAction) => void;
   onBatchConfirmPending: (ids: Set<string>, accountOverrides?: ReadonlyMap<string, string>) => Promise<BatchReviewResult>;
   onBeginEdit: (item: PendingTransaction) => void;
   onConfirm: (item: PendingTransaction) => void;
+  onCreateQuickAccount: (sourceLabel: string) => Promise<Account>;
 }) {
+  const styles = useStyles();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<BatchReviewResult | null>(null);
@@ -183,6 +211,20 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
       return next;
     });
   };
+  const createBatchAccount = async () => {
+    if (batchBusy) return;
+    setBatchBusy(true);
+    setBatchError('');
+    try {
+      const sourceLabel = missingAccountItems.length ? quickAccountName(missingAccountItems[0]) : '账单账户';
+      const account = await onCreateQuickAccount(sourceLabel);
+      selectDefaultAccount(account.id);
+    } catch {
+      setBatchError('创建账户失败，请重试。');
+    } finally {
+      setBatchBusy(false);
+    }
+  };
   const executeBatch = async () => {
     setBatchBusy(true);
     setBatchError('');
@@ -224,7 +266,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>
         {state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={batchDefaultAccountId === account.id} onPress={() => selectDefaultAccount(account.id)} />)}
       </ScrollView>
-      {!state.accounts.length && <Text style={styles.noticeText}>请先创建账户。</Text>}
+      {!state.accounts.length && <Pressable disabled={batchBusy} onPress={() => { void createBatchAccount(); }} accessibilityRole="button" style={[styles.quickAccount, batchBusy && styles.disabled]}><Text style={styles.quickAccountText}>还没有账户，先创建一个 ›</Text></Pressable>}
     </View>}
     {!!batchResult && <View style={[styles.batchResult, batchResult.failures.length > 0 ? styles.batchResultError : undefined]}>
       <Text style={styles.batchResultText}>成功 {batchResult.successCount} 笔，失败 {batchResult.failures.length} 笔</Text>
@@ -259,6 +301,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
 }
 
 function BatchCheckbox({ state, disabled }: { state: 'none' | 'partial' | 'all'; disabled: boolean }) {
+  const styles = useStyles();
   return <View style={[styles.checkbox, state !== 'none' && styles.checkboxChecked, disabled && styles.checkboxDisabled]}>
     <Text style={styles.checkboxGlyph}>{state === 'all' ? '✓' : state === 'partial' ? '−' : ''}</Text>
   </View>;
@@ -270,6 +313,7 @@ function GroupedTransactions({ transactions, accounts, iconStyle, collapsedProvi
   collapsedProviders: string[];
   onToggleProvider: (provider: string) => void;
 }) {
+  const styles = useStyles();
   const groups = providerList(transactions).map((provider) => ({ provider, transactions: transactions.filter((transaction) => providerOf(transaction) === provider) }));
   return <>{groups.map((group) => {
     const collapsed = collapsedProviders.includes(group.provider);
@@ -284,6 +328,7 @@ function GroupedTransactions({ transactions, accounts, iconStyle, collapsedProvi
 }
 
 function TransactionRow({ transaction, accounts, iconStyle }: { transaction: Transaction; accounts: Account[]; iconStyle: ProviderIconStyle }) {
+  const styles = useStyles();
   const account = accounts.find((item) => item.id === transaction.accountId)?.name ?? '账户已移除';
   return <PressableCard style={styles.transaction}>
     <View style={styles.transactionIdentity}>
@@ -297,6 +342,7 @@ function TransactionRow({ transaction, accounts, iconStyle }: { transaction: Tra
 }
 
 function Choice({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) {
+  const styles = useStyles();
   return <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} style={[styles.choice, selected && styles.choiceSelected]}><Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{label}</Text></Pressable>;
 }
 
@@ -325,6 +371,13 @@ function isPostable(item: PendingTransaction): boolean {
   return item.eventKind !== 'repayment-reminder' && item.eventKind !== 'repayment-failed' && item.eventStatus !== 'reminder' && item.eventStatus !== 'failed';
 }
 
+function quickAccountName(item: PendingTransaction): string {
+  const provider = item.provider?.trim();
+  if (provider) return provider;
+  const label = item.accountLabel?.split(' · ')[0]?.trim();
+  return label || item.category?.trim() || '账单账户';
+}
+
 function pendingMerchant(item: PendingTransaction): string {
   return item.counterparty?.trim() || item.category?.trim() || pendingTitle(item);
 }
@@ -346,7 +399,8 @@ function pendingTitle(item: PendingTransaction): string {
   return item.category ?? (item.type === 'income' ? '识别收入' : '识别支出');
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: 90 },
   kicker: { fontSize: 12, color: colors.muted },
@@ -398,5 +452,11 @@ const styles = StyleSheet.create({
   sheetActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 22, marginTop: 8 }, sheetAction: { minHeight: 40, justifyContent: 'center' }, disabledText: { color: colors.muted },
   importButton: { alignItems: 'center', justifyContent: 'center', minHeight: 40, marginTop: 12, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.surface },
   importButtonText: { fontSize: 12, fontWeight: '800', color: colors.accent },
-  defaultAccountRow: { paddingVertical: spacing.sm, gap: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }, defaultAccountLabel: { fontSize: 11, color: colors.ink, fontWeight: '700' }, loadMore: { minHeight: 48, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface }, loadMoreText: { fontSize: 11, color: colors.accent, fontWeight: '800' }, pressed: { transform: [{ scale: 0.97 }], opacity: 0.88 }, disabled: { opacity: 0.45 }, error: { fontSize: 11, color: colors.danger, marginTop: spacing.sm },
-});
+  defaultAccountRow: { paddingVertical: spacing.sm, gap: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }, defaultAccountLabel: { fontSize: 11, color: colors.ink, fontWeight: '700' }, quickAccount: { minHeight: 40, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.accentSoft }, quickAccountText: { fontSize: 11, fontWeight: '800', color: colors.accent }, loadMore: { minHeight: 48, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface }, loadMoreText: { fontSize: 11, color: colors.accent, fontWeight: '800' }, pressed: { transform: [{ scale: 0.97 }], opacity: 0.88 }, disabled: { opacity: 0.45 }, error: { fontSize: 11, color: colors.danger, marginTop: spacing.sm },
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.dangerSoft, colors.ink, colors.line, colors.muted, colors.overlay, colors.soft, colors.success, colors.successSoft, colors.surface, colors.warning, colors.warningSoft]);
+}

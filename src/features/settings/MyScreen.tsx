@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Alert, AppState, BackHandler, LayoutAnimation, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, UIManager, View } from 'react-native';
+import { ThemedModal } from '../../ui/components/ThemedModal';
+import React, { useState , useMemo } from 'react';
+import { Alert, AppState, BackHandler, LayoutAnimation, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, UIManager, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { AccountKind, LedgerState, RiskCardMode, Settings, WorkProfile } from '../../core/model/finance';
-import { colors, spacing, radius } from '../../ui/theme';
+import { spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 import { createAccount } from '../accounts/accounts';
 import { BalanceReconcileEntry, lastBalanceReconciliation } from '../accounts/reconcile';
 import { logger } from '../../core/logging/logger';
@@ -26,11 +28,10 @@ type SettingKey = keyof Settings;
 type Choice = { label: string; value: string | number | boolean };
 const definitions: Partial<Record<SettingKey, { title: string; description: string; choices?: Choice[] }>> = {
   riskCardMode: { title: '现金流风险卡片', description: '真实资金缺口提醒始终会保留。', choices: [{ label: '始终显示', value: 'always' }, { label: '仅风险时显示', value: 'risk-only' }, { label: '首页隐藏', value: 'hidden' }] },
-  reminderMode: { title: '消费后提醒', description: '只提示预算变化，不会锁定或阻止消费。', choices: [{ label: '神罚模式', value: 'punish' }, { label: '平衡提醒', value: 'balanced' }, { label: '轻提醒', value: 'light' }, { label: '详细提醒', value: 'strict' }] },
+  reminderMode: { title: '模式', description: '神罚每笔消费实时警示；严厉支付后提醒；一般为轻提醒。', choices: [{ label: '神罚', value: 'punish' }, { label: '严厉', value: 'strict' }, { label: '一般', value: 'normal' }] },
   providerIconStyle: { title: '账单 App 图标', description: '品牌图标使用官方品牌字标，字符徽章使用来源首字。', choices: [{ label: '品牌图标', value: 'logo' }, { label: '字符徽章', value: 'badge' }] },
-  strictMode: { title: '严格模式', description: '启用后增加超预算提示，但仍允许用户正常记账。', choices: [{ label: '关闭', value: false }, { label: '开启', value: true }] },
   repaymentReminders: { title: '还款到期提醒', description: '显示账本中记录的还款和账单到期提示。', choices: [{ label: '关闭', value: false }, { label: '开启', value: true }] },
-  reducedMotion: { title: '减少动效', description: '关闭弹层和切换的非必要动画。', choices: [{ label: '跟随默认动效', value: false }, { label: '减少动效', value: true }] },
+  motionLevel: { title: '动效', description: '控制按钮回弹、弹层和页面过渡的动画强度。', choices: [{ label: '超级动效', value: 'super' }, { label: '强化动效', value: 'enhanced' }, { label: '一般动效', value: 'standard' }] },
 };
 const integrations = {
   bank: { title: '银行与支付平台', body: '当前版本未连接任何银行或支付平台。不会读取账户凭证，也不会同步交易。接入服务与授权流程尚未配置。' },
@@ -55,6 +56,8 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
   openModulePanel?: boolean;
   onModulePanelOpened?: () => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [page, setPage] = useState<'me' | 'settings' | 'module' | 'attendance'>('me');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ accounts: state.accounts.length === 0, salary: false, attendance: false, reminders: false });
   const [activeKey, setActiveKey] = useState<SettingKey | null>(null);
@@ -111,7 +114,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
   }, [refreshIntegrations]);
 
   const toggleSection = (key: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (settings.motionLevel !== 'standard') LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((current) => ({ ...current, [key]: !current[key] }));
   };
   const openSetting = (key: SettingKey) => { setActiveKey(key); };
@@ -200,7 +203,8 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
   const currentValue = (key: SettingKey) => {
     const value = settings[key];
     if (key === 'riskCardMode') return ({ always: '始终显示', 'risk-only': '仅风险时显示', hidden: '首页隐藏' } as Record<string, string>)[String(value)];
-    if (key === 'reminderMode') return ({ punish: '神罚模式', balanced: '平衡提醒', light: '轻提醒', strict: '详细提醒' } as Record<string, string>)[String(value)];
+    if (key === 'reminderMode') return ({ punish: '神罚', strict: '严厉', normal: '一般' } as Record<string, string>)[String(value)];
+    if (key === 'motionLevel') return ({ super: '超级动效', enhanced: '强化动效', standard: '一般动效' } as Record<string, string>)[String(value)];
     if (key === 'providerIconStyle') return ({ logo: '品牌图标', badge: '字符徽章' } as Record<string, string>)[String(value)];
     if (typeof value === 'boolean') return value ? '开启' : '关闭';
     return `${value}`;
@@ -261,10 +265,10 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
         {state.accounts.length > 0 && <Pressable onPress={openReconcile} accessibilityRole="button" style={styles.inlineAction}><Ionicons name="calculator-outline" size={17} color={colors.accent} /><Text style={styles.actionText}>校准账户余额</Text></Pressable>}
         {state.accounts.length > 0 && <Text style={styles.lastReconcile}>{lastReconcile ? `上次校准：${formatReconcileDate(lastReconcile.occurredAt)}，调整 ${formatSignedMoney(lastReconcile.totalAdjustment)}` : '尚未校准账户余额'}</Text>}
       </>)}
-      {accordion('salary', '工资', '底薪、试用期、补贴与发薪', <WorkSettingsSection section="salary" profile={settings.work} reducedMotion={settings.reducedMotion} onChange={onUpdateWorkProfile} />, isDefaultWorkProfile(settings.work) ? '默认值 · 待确认' : undefined)}
-      {accordion('accountMapping', '账户映射', '把账单里的支付账户名关联到应用账户', <AccountMappingSection labels={accountMappingLabels} accounts={state.accounts} mapping={settings.accountMapping} reducedMotion={settings.reducedMotion} onChange={(accountMapping) => onUpdateSettings({ accountMapping })} />)}
-      {accordion('essentials', '每月固定花费', '吃住、会员与其他每月固定支出', <EssentialItemsSection items={settings.essentialItems} reducedMotion={settings.reducedMotion} onChange={(items) => onUpdateSettings({ essentialItems: items, essentialMonthlyExpenses: essentialItemsTotal(items) })} />, '合计 ¥' + essentialItemsTotal(settings.essentialItems).toFixed(2))}
-      {accordion('attendance', '考勤', '月休、每天工时与考勤日历', <><WorkSettingsSection section="attendance" profile={settings.work} reducedMotion={settings.reducedMotion} onChange={onUpdateWorkProfile} /><Pressable onPress={() => setPage('attendance')} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>考勤日历</Text><Text style={styles.rowValue}>查看 ›</Text></Pressable></>)}
+      {accordion('salary', '工资', '底薪、试用期、补贴与发薪', <WorkSettingsSection section="salary" profile={settings.work} motionLevel={settings.motionLevel} onChange={onUpdateWorkProfile} />, isDefaultWorkProfile(settings.work) ? '默认值 · 待确认' : undefined)}
+      {accordion('accountMapping', '账户映射', '把账单里的支付账户名关联到应用账户', <AccountMappingSection labels={accountMappingLabels} accounts={state.accounts} mapping={settings.accountMapping} motionLevel={settings.motionLevel} onChange={(accountMapping) => onUpdateSettings({ accountMapping })} />)}
+      {accordion('essentials', '每月固定花费', '吃住、会员与其他每月固定支出', <EssentialItemsSection items={settings.essentialItems} motionLevel={settings.motionLevel} onChange={(items) => onUpdateSettings({ essentialItems: items, essentialMonthlyExpenses: essentialItemsTotal(items) })} />, '合计 ¥' + essentialItemsTotal(settings.essentialItems).toFixed(2))}
+      {accordion('attendance', '考勤', '月休、每天工时与考勤日历', <><WorkSettingsSection section="attendance" profile={settings.work} motionLevel={settings.motionLevel} onChange={onUpdateWorkProfile} /><Pressable onPress={() => setPage('attendance')} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>考勤日历</Text><Text style={styles.rowValue}>查看 ›</Text></Pressable></>)}
       {accordion('reminders', '提醒偏好', '现金流与消费提醒', <>{renderRow('riskCardMode')}{renderRow('reminderMode')}</>)}
       <Pressable onPress={() => setPage('settings')} accessibilityRole="button" style={({ pressed }) => [styles.settingsEntry, pressed && styles.pressed]}>
         <View style={styles.settingsIcon}><Ionicons name="settings-outline" size={19} color={colors.ink} /></View>
@@ -274,27 +278,27 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
     </ScrollView> : <ScrollView contentContainerStyle={styles.scroll}>
       <Pressable onPress={() => setPage('me')} accessibilityRole="button" accessibilityLabel="返回我的" style={({ pressed }) => [styles.back, pressed && styles.pressed]}><Ionicons name="arrow-back" size={19} color={colors.ink} /><Text style={styles.backText}>返回我的</Text></Pressable>
       <Text style={styles.title}>设置</Text>
-      <Text style={styles.groupLabel}>偏好设置</Text><View style={styles.group}><View style={styles.statusServiceRow}><View style={styles.statusServiceCopy}><Text style={styles.rowLabel}>状态栏常驻</Text><Text style={styles.statusServiceDescription}>显示已存、目标还差和本月缺口。ColorOS 可能杀服务，需要手动允许后台运行和自启动。</Text>{!!statusServiceError && <Text style={styles.error}>{statusServiceError}</Text>}</View><Switch value={settings.statusServiceEnabled} disabled={statusServiceBusy} onValueChange={(value) => { void toggleStatusService(value); }} trackColor={{ false: colors.line, true: colors.accentSoft }} thumbColor={settings.statusServiceEnabled ? colors.accent : colors.muted} /></View><View style={styles.statusServiceRow}><View style={styles.statusServiceCopy}><Text style={styles.rowLabel}>触感反馈</Text><Text style={styles.statusServiceDescription}>记一笔确认和打卡成功时振动 8ms。</Text></View><Switch value={settings.hapticsEnabled} onValueChange={(value) => onUpdateSettings({ hapticsEnabled: value })} trackColor={{ false: colors.line, true: colors.accentSoft }} thumbColor={settings.hapticsEnabled ? colors.accent : colors.muted} /></View>{renderRow('strictMode')}{renderRow('repaymentReminders')}{renderRow('reducedMotion')}{renderRow('providerIconStyle')}</View>
-      <Text style={styles.groupLabel}>连接与数据</Text><View style={styles.group}><Row label="支付通知识别" value={notificationAccess ? '已授权' : '未授权'} onPress={() => setIntegration('bank')} /><Row label="Root 状态检测" value={rootStatus === 'detected' ? '检测到标志' : rootStatus === 'not-detected' ? '未检测到' : '不可用'} onPress={() => setIntegration('root')} /><Row label="Magisk 控制面板" value="打开" onPress={() => setPage('module')} /><Row label="账号与云同步" value="本地模式" onPress={() => setIntegration('sync')} /><Row label="隐私说明" value="查看" onPress={() => setIntegration('privacy')} /></View>
+      <Text style={styles.groupLabel}>偏好设置</Text><View style={styles.group}><View style={styles.statusServiceRow}><View style={styles.statusServiceCopy}><Text style={styles.rowLabel}>状态栏常驻</Text><Text style={styles.statusServiceDescription}>显示已存、目标还差和本月缺口。ColorOS 可能杀服务，需要手动允许后台运行和自启动。</Text>{!!statusServiceError && <Text style={styles.error}>{statusServiceError}</Text>}</View><Switch value={settings.statusServiceEnabled} disabled={statusServiceBusy} onValueChange={(value) => { void toggleStatusService(value); }} trackColor={{ false: colors.line, true: colors.accentSoft }} thumbColor={settings.statusServiceEnabled ? colors.accent : colors.muted} /></View><View style={styles.statusServiceRow}><View style={styles.statusServiceCopy}><Text style={styles.rowLabel}>触感反馈</Text><Text style={styles.statusServiceDescription}>记一笔确认和打卡成功时振动 8ms。</Text></View><Switch value={settings.hapticsEnabled} onValueChange={(value) => onUpdateSettings({ hapticsEnabled: value })} trackColor={{ false: colors.line, true: colors.accentSoft }} thumbColor={settings.hapticsEnabled ? colors.accent : colors.muted} /></View>{renderRow('repaymentReminders')}{renderRow('motionLevel')}{renderRow('providerIconStyle')}</View>
+      <Text style={styles.groupLabel}>连接与数据</Text><View style={styles.group}><Row label="支付通知识别" value={notificationAccess ? '已授权' : '未授权'} onPress={() => setIntegration('bank')} /><Row label="Root 状态检测" value={rootStatus === 'detected' ? '检测到标志' : rootStatus === 'not-detected' ? '未检测到' : '不可用'} onPress={() => setIntegration('root')} /><Row label="Magisk 控制面板" value="打开" onPress={() => setPage('module')} /><Row label="账号与云同步" value="本地模式" onPress={() => setIntegration('sync')} /></View>
       <Text style={styles.groupLabel}>数据管理</Text>
       <View style={styles.group}><Row label="导出数据备份" value="JSON" onPress={exportBackup} /><Row label="清空所有数据" value="危险操作" onPress={confirmClearAllData} /></View>
       <Text style={styles.groupLabel}>诊断日志 · {logVersion >= 0 ? entries.length : 0}</Text>
       <View style={styles.log}>{entries.length ? entries.slice(0, 8).map((entry, index) => <Text style={styles.logText} key={`${entry.at}-${index}`}>{entry.at.slice(11, 19)}  {entry.event}</Text>) : <Text style={styles.logText}>暂无日志记录</Text>}</View>
       <Pressable onPress={clearLogs} accessibilityRole="button" style={styles.clear}><Text style={styles.clearText}>清空诊断日志</Text></Pressable>
-      <View style={styles.group}><Row label="关于" value="版本信息" onPress={() => setIntegration('about')} /></View>
+      <View style={styles.group}><Row label="隐私说明" value="查看" onPress={() => setIntegration('privacy')} /><Row label="关于" value="版本信息" onPress={() => setIntegration('about')} /></View>
     </ScrollView>}
 
-    <Modal visible={!!activeKey} transparent animationType={settings.reducedMotion ? 'none' : 'fade'} onRequestClose={() => setActiveKey(null)}>
+    <ThemedModal visible={!!activeKey} transparent animationType={settings.motionLevel === 'standard' ? 'none' : 'fade'} onRequestClose={() => setActiveKey(null)}>
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.sheetTitle}>{activeKey ? definitions[activeKey]?.title : ''}</Text>
         <Text style={styles.description}>{activeKey ? definitions[activeKey]?.description : ''}</Text>
         {activeKey && definitions[activeKey]?.choices?.map((choice) => <Pressable key={String(choice.value)} onPress={() => saveChoice(activeKey, choice.value)} style={styles.option}><Text style={styles.optionLabel}>{choice.label}</Text>{settings[activeKey] === choice.value && <Text style={styles.selected}>已选择</Text>}</Pressable>)}
       </View></View>
-    </Modal>
-    <Modal visible={!!integration} transparent animationType={settings.reducedMotion ? 'none' : 'fade'} onRequestClose={() => setIntegration(null)}>
+    </ThemedModal>
+    <ThemedModal visible={!!integration} transparent animationType={settings.motionLevel === 'standard' ? 'none' : 'fade'} onRequestClose={() => setIntegration(null)}>
       <View style={styles.backdrop}><View style={styles.sheet}><Text style={styles.sheetTitle}>{integration ? integrations[integration].title : ''}</Text><Text style={styles.detail}>{integration === 'bank' ? `通知访问${notificationAccess ? '已授权' : '未授权'}。支持支付宝、微信支付及部分短信 App 的交易通知；不会读取短信数据库，也不保证覆盖所有银行通知格式。识别结果仅进入待确认列表。` : integration === 'root' ? `Root 状态：${rootStatus === 'detected' ? '检测到常见安装标志' : rootStatus === 'not-detected' ? '未检测到常见安装标志' : '当前平台不可用'}。该结果仅供参考，不执行 su 命令，不访问其他 App 私有数据；当前没有安装 Root 模块。` : integration ? integrations[integration].body : ''}</Text>{integration === 'bank' && <Pressable onPress={async () => { await nativeFinance.openNotificationAccessSettings(); }} style={styles.done}><Text style={styles.doneText}>打开通知访问设置</Text></Pressable>}{integration === 'root' && <Pressable onPress={refreshIntegrations} style={styles.done}><Text style={styles.doneText}>重新检测</Text></Pressable>}<Pressable onPress={() => setIntegration(null)} style={[styles.done, (integration === 'bank' || integration === 'root') && styles.secondaryDone]}><Text style={[styles.doneText, (integration === 'bank' || integration === 'root') && styles.secondaryDoneText]}>知道了</Text></Pressable></View></View>
-    </Modal>
-    <Modal visible={accountModal} transparent animationType={settings.reducedMotion ? 'none' : 'fade'} onRequestClose={() => setAccountModal(false)}>
+    </ThemedModal>
+    <ThemedModal visible={accountModal} transparent animationType={settings.motionLevel === 'standard' ? 'none' : 'fade'} onRequestClose={() => setAccountModal(false)}>
       <View style={styles.backdrop}><View style={styles.sheet}><Text style={styles.sheetTitle}>{editingAccountId ? '修改账户余额' : '添加账户'}</Text>
         {!editingAccountId && <><Text style={styles.fieldLabel}>账户名称</Text><TextInput value={accountName} onChangeText={setAccountName} placeholder="例如：现金" style={styles.input} />
         <Text style={styles.fieldLabel}>账户类型</Text><View style={styles.kindChoices}>{([['cash', '现金'], ['bank', '储蓄卡'], ['credit', '信用卡'], ['wallet', '支付账户']] as [AccountKind, string][]).map(([kind, label]) => <Pressable key={kind} onPress={() => setAccountKind(kind)} style={[styles.kindChoice, accountKind === kind && styles.kindSelected]}><Text style={[styles.kindText, accountKind === kind && styles.kindTextSelected]}>{label}</Text></Pressable>)}</View></>}
@@ -302,8 +306,8 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
         {!!accountError && <Text style={styles.error}>{accountError}</Text>}
         <View style={styles.actions}><Text onPress={() => { setAccountModal(false); setEditingAccountId(null); setAccountError(''); }} style={styles.cancel}>取消</Text><Text onPress={saveAccount} style={styles.save}>{editingAccountId ? '保存余额' : '创建账户'}</Text></View>
       </View></View>
-    </Modal>
-    <Modal visible={reconcileModal} transparent animationType={settings.reducedMotion ? 'none' : 'fade'} onRequestClose={() => setReconcileModal(false)}>
+    </ThemedModal>
+    <ThemedModal visible={reconcileModal} transparent animationType={settings.motionLevel === 'standard' ? 'none' : 'fade'} onRequestClose={() => setReconcileModal(false)}>
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.sheetTitle}>校准账户余额</Text>
         <Text style={styles.description}>只填写需要校准的账户。信用账户请填写欠款金额，保存时仍按负数记账。</Text>
@@ -321,7 +325,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
         {!!reconcileError && <Text style={styles.error}>{reconcileError}</Text>}
         <View style={styles.actions}><Text onPress={() => setReconcileModal(false)} style={styles.cancel}>取消</Text><Pressable disabled={reconcileDisabled} onPress={submitReconcile} style={[styles.confirmButton, reconcileDisabled && styles.disabled]}><Text style={styles.doneText}>确认校准</Text></Pressable></View>
       </View></View>
-    </Modal>
+    </ThemedModal>
   </View>;
 }
 
@@ -335,9 +339,11 @@ function formatReconcileDate(value: string): string {
   const date = new Date(value);
   return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
-function Row({ label, value, onPress }: { label: string; value: string; onPress: () => void }) { return <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}  ›</Text></Pressable>; }
+function Row({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
+  const styles = useStyles(); return <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}  ›</Text></Pressable>; }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background }, scroll: { padding: spacing.lg, paddingBottom: 90 },
   kicker: { fontSize: 12, color: colors.muted }, title: { fontSize: 25, fontWeight: '800', color: colors.ink, marginTop: 4, marginBottom: 16 },
   section: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface, marginBottom: 9, overflow: 'hidden' },
@@ -350,4 +356,10 @@ const styles = StyleSheet.create({
   lastReconcile: { color: colors.muted, fontSize: 10, lineHeight: 16, paddingBottom: 8, fontVariant: ['tabular-nums'] }, reconcileList: { maxHeight: 360 }, reconcileRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line, gap: 7 }, reconcileHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }, reconcileDiff: { color: colors.muted, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] }, reconcileDifference: { color: colors.danger }, reconcileNote: { color: colors.muted, fontSize: 10, lineHeight: 16, marginTop: 10 }, confirmButton: { height: 44, minWidth: 104, backgroundColor: colors.accent, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.4 },
   statusServiceRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line }, statusServiceCopy: { flex: 1, paddingVertical: spacing.sm }, statusServiceDescription: { fontSize: 10, lineHeight: 16, color: colors.muted, marginTop: spacing.xxs },
   fieldLabel: { fontSize: 11, color: colors.muted, marginTop: 14, marginBottom: 7 }, kindChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, kindChoice: { minHeight: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' }, kindSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, kindText: { fontSize: 11, color: colors.muted }, kindTextSelected: { color: colors.ink, fontWeight: '800' }, error: { fontSize: 11, color: colors.danger, marginTop: 8 },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.soft, colors.success, colors.surface, colors.warning, colors.warningSoft]);
+}

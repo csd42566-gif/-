@@ -30,7 +30,8 @@ test('缺少餐补时新增一项且不改原对象', () => {
 test('只接受真实存在的本地日期键', () => {
   expect(isValidDateKey('2026-11-10')).toBe(true);
   expect(isValidDateKey('2026-02-30')).toBe(false);
-  expect(isValidDateKey('2026-1-10')).toBe(false);
+  expect(isValidDateKey('2026-1-10')).toBe(true);
+  expect(isValidDateKey('20260110')).toBe(true);
 });
 
 test('逐字段判断工资配置是否仍为默认值', () => {
@@ -49,4 +50,10 @@ test('试用期开始和结束日期推导周期起始日与转正日', () => {
 
 test('试用期结束日期不能早于开始日期', () => {
   expect(withProbationPeriod(defaultWorkProfile, '2026-11-09', '2026-10-10')).toBeNull();
+});
+
+
+test('试用期日期保存时统一补零存储', () => {
+  const updated = withProbationPeriod(defaultWorkProfile, '2026-1-1', '2026-1-31');
+  expect(updated).toMatchObject({ probationStartDate: '2026-01-01', regularStartDate: '2026-02-01' });
 });

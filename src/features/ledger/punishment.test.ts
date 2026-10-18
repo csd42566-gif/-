@@ -1,6 +1,6 @@
 import { EarningsResult } from '../../core/work/attendance';
 import { DerivedFinancials } from '../../core/finance/derive';
-import { evaluateTransaction } from './punishment';
+import { estimateWorkCost, evaluateTransaction } from './punishment';
 
 const earnings: EarningsResult = {
   cycleStart: '2026-10-10',
@@ -120,4 +120,9 @@ test('punish 优先于 warn', () => {
   });
 
   expect(result.level).toBe('punish');
+});
+
+test('工作时长估算集中在一个可替换函数', () => {
+  expect(estimateWorkCost(80, 23.15)).toBeCloseTo(3.4557, 4);
+  expect(estimateWorkCost(80, 0)).toBe(0);
 });

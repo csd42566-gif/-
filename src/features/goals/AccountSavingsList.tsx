@@ -1,10 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, LayoutAnimation, PanResponder, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Account } from '../../core/model/finance';
+import { Account, MotionLevel } from '../../core/model/finance';
 import { calculateExistingSavings } from '../accounts/accountSavings';
 import { moveAccountId, orderAccounts } from '../accounts/accountOrder';
-import { colors, spacing, radius } from '../../ui/theme';
+import { motion, radius, spacing, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 
 const ROW_HEIGHT = 68;
 
@@ -15,11 +16,13 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 type Props = {
   accounts: Account[];
   savedOrder: string[];
-  reducedMotion: boolean;
+  motionLevel: MotionLevel;
   onOrderChange: (order: string[]) => void;
 };
 
-export function AccountSavingsList({ accounts, savedOrder, reducedMotion, onOrderChange }: Props) {
+export function AccountSavingsList({ accounts, savedOrder, motionLevel, onOrderChange }: Props) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const eligibleAccounts = useMemo(() => accounts.filter((account) => account.kind !== 'credit'), [accounts]);
   const orderedAccounts = useMemo(() => orderAccounts(eligibleAccounts, savedOrder), [eligibleAccounts, savedOrder]);
   const orderedIds = useMemo(() => orderedAccounts.map((account) => account.id), [orderedAccounts]);
@@ -31,9 +34,9 @@ export function AccountSavingsList({ accounts, savedOrder, reducedMotion, onOrde
     if (!targetId) return;
     const next = moveAccountId(orderedIds, draggedId, targetId);
     if (next.join('|') === orderedIds.join('|')) return;
-    if (!reducedMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (motionLevel !== 'standard') LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     onOrderChange(next);
-  }, [onOrderChange, orderedAccounts, orderedIds, reducedMotion]);
+  }, [onOrderChange, orderedAccounts, orderedIds, motionLevel]);
 
   return <View style={styles.section}>
     <View style={styles.heading}>
@@ -68,7 +71,7 @@ export function AccountSavingsList({ accounts, savedOrder, reducedMotion, onOrde
         index={index}
         count={orderedAccounts.length}
         editing={editing}
-        reducedMotion={reducedMotion}
+        motionLevel={motionLevel}
         onMove={move}
       />)}
     </View>
@@ -76,14 +79,16 @@ export function AccountSavingsList({ accounts, savedOrder, reducedMotion, onOrde
   </View>;
 }
 
-function DraggableAccountRow({ account, index, count, editing, reducedMotion, onMove }: {
+function DraggableAccountRow({ account, index, count, editing, motionLevel, onMove }: {
   account: Account;
   index: number;
   count: number;
   editing: boolean;
-  reducedMotion: boolean;
+  motionLevel: MotionLevel;
   onMove: (draggedId: string, targetIndex: number) => void;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const translateY = useRef(new Animated.Value(0)).current;
   const moveRef = useRef(onMove);
   moveRef.current = onMove;
@@ -93,12 +98,13 @@ function DraggableAccountRow({ account, index, count, editing, reducedMotion, on
     onPanResponderMove: (_, gesture) => translateY.setValue(gesture.dy),
     onPanResponderRelease: (_, gesture) => finishDrag(gesture.dy),
     onPanResponderTerminate: () => finishDrag(0),
-  }), [editing, index, count, reducedMotion, account.id]);
+  }), [editing, index, count, motionLevel, account.id]);
 
   const finishDrag = (distance: number) => {
     const targetIndex = Math.max(0, Math.min(count - 1, index + Math.round(distance / ROW_HEIGHT)));
-    if (reducedMotion) translateY.setValue(0);
-    else Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 240 }).start();
+    const config = motion.levels[motionLevel];
+    if (motionLevel === 'standard' || !config.spring) translateY.setValue(0);
+    else Animated.spring(translateY, { toValue: 0, ...config.spring, useNativeDriver: true }).start();
     if (targetIndex !== index) moveRef.current(account.id, targetIndex);
   };
 
@@ -122,7 +128,8 @@ function accountTypeLabel(account: Account): string {
   return '第三方账户';
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   section: { marginTop: spacing.lg },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   sectionTitle: { fontSize: 15, fontWeight: '900', color: colors.ink },
@@ -145,4 +152,10 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 13, color: colors.ink, fontWeight: '800' },
   emptyCaption: { fontSize: 11, color: colors.muted, lineHeight: 17, marginTop: 5 },
   editHint: { fontSize: 10, color: colors.muted, marginTop: 7 },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.ink, colors.line, colors.muted, colors.success, colors.successSoft, colors.surface]);
+}

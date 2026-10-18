@@ -1,7 +1,11 @@
 package com.strictledger.app
 
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
+import android.os.Build
+import android.view.View
+import android.view.WindowInsetsController
 import android.provider.Settings
 import android.util.Base64
 import com.facebook.react.bridge.ReactApplicationContext
@@ -37,6 +41,34 @@ class FinanceBridgeModule(context: ReactApplicationContext) : ReactContextBaseJa
   @ReactMethod fun getRootStatus(promise: Promise) {
     val indicators = listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/system/app/Superuser.apk", "/data/adb/magisk")
     promise.resolve(if (indicators.any { File(it).exists() }) "detected" else "not-detected")
+  }
+
+  @ReactMethod fun setNavigationBarStyle(backgroundColor: String, lightButtons: Boolean, promise: Promise) {
+    val activity = currentActivity
+    if (activity == null) {
+      promise.reject("navigation-bar-activity-unavailable", "Activity is not available")
+      return
+    }
+    activity.runOnUiThread {
+      try {
+        val color = Color.parseColor(backgroundColor)
+        activity.window.navigationBarColor = color
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          val appearance = if (lightButtons) 0 else WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+          activity.window.insetsController?.setSystemBarsAppearance(appearance, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          val current = activity.window.decorView.systemUiVisibility
+          activity.window.decorView.systemUiVisibility = if (lightButtons) {
+            current and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+          } else {
+            current or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+          }
+        }
+        promise.resolve(true)
+      } catch (error: Exception) {
+        promise.reject("navigation-bar-style-failed", error)
+      }
+    }
   }
 
   @ReactMethod fun startStatusService(text: String, promise: Promise) {

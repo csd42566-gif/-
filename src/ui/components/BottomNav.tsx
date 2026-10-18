@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../theme';
+import { ThemeColors } from '../theme';
+import { useTheme } from '../ThemeContext';
 
 export type Tab = 'home' | 'ledger' | 'debts' | 'goals' | 'me';
 const items: { key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; selectedIcon: keyof typeof Ionicons.glyphMap }[] = [
@@ -14,6 +15,8 @@ const items: { key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; se
 ];
 
 export function BottomNav({ active, onChange }: { active: Tab; onChange: (tab: Tab) => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return <View style={[styles.bar, { height: 56 + insets.bottom, paddingBottom: insets.bottom }]} accessibilityRole="tablist">{items.map(({ key, label, icon, selectedIcon }) => {
     const selected = key === active;
@@ -24,10 +27,17 @@ export function BottomNav({ active, onChange }: { active: Tab; onChange: (tab: T
   })}</View>;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   bar: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start' },
   item: { flex: 1, height: 56, alignItems: 'center', justifyContent: 'center', gap: 2 },
   label: { fontSize: 10, color: colors.muted },
   active: { color: colors.accent, fontWeight: '800' },
   pressed: { opacity: 0.65, transform: [{ scale: 0.97 }] },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.line, colors.muted, colors.surface]);
+}

@@ -16,6 +16,7 @@ type FinanceBridge = {
   isNotificationAccessEnabled(): Promise<boolean>;
   openNotificationAccessSettings(): Promise<boolean>;
   getRootStatus(): Promise<'detected' | 'not-detected' | 'unavailable'>;
+  setNavigationBarStyle(backgroundColor: string, lightButtons: boolean): Promise<boolean>;
   consumeNotificationCandidates(): Promise<NativeNotificationEvent[]>;
   startStatusService(text: string): Promise<boolean>;
   updateStatusService(text: string): Promise<boolean>;
@@ -41,6 +42,7 @@ export const nativeFinance = {
   isNotificationAccessEnabled: () => bridge?.isNotificationAccessEnabled() ?? Promise.resolve(false),
   openNotificationAccessSettings: () => bridge?.openNotificationAccessSettings() ?? Promise.resolve(false),
   getRootStatus: () => bridge?.getRootStatus() ?? Promise.resolve('unavailable' as const),
+  setNavigationBarStyle: (backgroundColor: string, lightButtons: boolean) => bridge?.setNavigationBarStyle(backgroundColor, lightButtons) ?? Promise.resolve(false),
   consumeNotificationCandidates: () => bridge?.consumeNotificationCandidates() ?? Promise.resolve([]),
   startStatusService: (text: string) => bridge?.startStatusService(text) ?? Promise.reject(new Error('status-service-unavailable')),
   updateStatusService: (text: string) => bridge?.updateStatusService(text) ?? Promise.reject(new Error('status-service-unavailable')),

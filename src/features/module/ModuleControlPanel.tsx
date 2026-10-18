@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState , useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius } from '../../ui/theme';
+import { spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
 import { logger } from '../../core/logging/logger';
 import { nativeFinance } from '../../integrations/notifications/nativeFinance';
 import { DEFAULT_MODULE_CONFIG, MagiskModuleStatus, ModuleFeatureKey } from '../../integrations/magisk/module';
@@ -24,6 +25,8 @@ const EMPTY_STATUS: MagiskModuleStatus = {
 };
 
 export function ModuleControlPanel({ onBack }: { onBack: () => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [status, setStatus] = useState(EMPTY_STATUS);
   const [loading, setLoading] = useState(true);
   const [busyFeature, setBusyFeature] = useState<ModuleFeatureKey | null>(null);
@@ -92,6 +95,8 @@ export function ModuleControlPanel({ onBack }: { onBack: () => void }) {
 }
 
 function FeatureRow({ feature, enabled, disabled, onToggle }: { feature: ModuleFeature; enabled: boolean; disabled: boolean; onToggle: (enabled: boolean) => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return <View style={[styles.featureRow, !feature.available && styles.featureUnavailable]}>
     <View style={styles.featureIcon}><Ionicons name={feature.key === 'cloudSync' ? 'cloud-outline' : feature.key === 'rootEnhancement' ? 'shield-checkmark-outline' : feature.key === 'repaymentDetection' ? 'repeat-outline' : feature.key === 'billScan' ? 'folder-open-outline' : 'notifications-outline'} size={18} color={feature.available ? colors.accent : colors.muted} /></View>
     <View style={styles.featureCopy}><Text style={styles.featureTitle}>{feature.title}</Text><Text style={styles.featureDescription}>{feature.description}</Text>{!feature.available && <Text style={styles.pending}>待接入</Text>}</View>
@@ -99,7 +104,8 @@ function FeatureRow({ feature, enabled, disabled, onToggle }: { feature: ModuleF
   </View>;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: 100 },
   back: { minHeight: 40, alignSelf: 'flex-start', paddingHorizontal: 10, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface },
@@ -132,4 +138,10 @@ const styles = StyleSheet.create({
   footnote: { fontSize: 11, lineHeight: 17, color: colors.muted, marginTop: 14 },
   error: { fontSize: 11, lineHeight: 16, color: colors.danger, marginTop: 10 },
   pressed: { opacity: 0.65 },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.ink, colors.line, colors.muted, colors.soft, colors.success, colors.surface, colors.warning]);
+}

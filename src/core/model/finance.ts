@@ -5,9 +5,10 @@ export type DetectedEventStatus='success'|'reminder'|'failed';
 export type AccountKind='cash'|'bank'|'credit'|'wallet';
 export type RiskCardMode='always'|'risk-only'|'hidden';
 export type ProviderIconStyle='badge'|'logo';
-export type ReminderMode='balanced'|'strict'|'light'|'punish';
+export type ReminderMode='punish'|'strict'|'normal';
 export type BudgetGroup='essential'|'flexible';
 export type RepaymentMode='minimum'|'full';
+export type MotionLevel='super'|'enhanced'|'standard';
 export interface Account{id:string;name:string;kind:AccountKind;balance:number}
 export interface Transaction{id:string;type:TransactionType;amount:number;accountId:string;toAccountId?:string;category?:string;budgetGroup?:BudgetGroup;note?:string;occurredAt:string;source:TransactionSource;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number;externalKey?:string}
 export interface PendingTransaction{ id:string;type:'income'|'expense';amount:number;accountId?:string;accountLabel?:string;category?:string;note?:string;occurredAt:string;source:Exclude<TransactionSource,'manual'>;confidence:number;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number }
@@ -51,6 +52,8 @@ export interface Settings{
   repaymentReminders:boolean;
   statusServiceEnabled:boolean;
   hapticsEnabled:boolean;
+  motionLevel:MotionLevel;
+  /** @deprecated Use motionLevel. */
   reducedMotion:boolean;
   accountDisplayOrder:string[];
   accountMapping:Record<string,string>;
@@ -89,6 +92,7 @@ export const defaultSettings: Settings = {
   repaymentReminders: true,
   statusServiceEnabled: false,
   hapticsEnabled: true,
+  motionLevel: 'enhanced',
   reducedMotion: false,
   accountDisplayOrder: [],
   accountMapping: {},

@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { WorkProfile } from '../../core/model/finance';
-import { colors, spacing, radius } from '../../ui/theme';
+import { ThemedModal } from '../../ui/components/ThemedModal';
+import React, { useState , useMemo } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MotionLevel, WorkProfile } from '../../core/model/finance';
+import { spacing, radius, ThemeColors } from '../../ui/theme';
+import { useTheme } from '../../ui/ThemeContext';
+import { normalizeDateKey } from '../../core/time/dateKey';
 import { mealAllowanceAmount, probationPeriodEnd, withMealAllowance, withProbationPeriod } from './workSettings';
 
 type WorkFieldKey =
@@ -33,12 +36,14 @@ const fields: WorkField[] = [
   { key: 'workHoursPerDay', section: 'attendance', title: '每天工时', description: '用于计算时薪。', keyboardType: 'decimal-pad' },
 ];
 
-export function WorkSettingsSection({ profile, section, reducedMotion, onChange }: {
+export function WorkSettingsSection({ profile, section, motionLevel, onChange }: {
   profile: WorkProfile;
   section: 'salary' | 'attendance';
-  reducedMotion: boolean;
+  motionLevel: MotionLevel;
   onChange: (patch: Partial<WorkProfile>) => Promise<void>;
 }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [activeField, setActiveField] = useState<WorkField | null>(null);
   const [input, setInput] = useState('');
   const [endInput, setEndInput] = useState('');
@@ -62,9 +67,19 @@ export function WorkSettingsSection({ profile, section, reducedMotion, onChange 
       }
       patch = { allowances: withMealAllowance(profile, value).allowances };
     } else if (activeField.key === 'probationPeriod') {
-      const next = withProbationPeriod(profile, input.trim(), endInput.trim());
+      const normalizedStart = normalizeDateKey(input);
+      const normalizedEnd = normalizeDateKey(endInput);
+      if (!normalizedStart || !normalizedEnd) {
+        setError('日期格式无法识别，示例 2026-10-10');
+        return;
+      }
+      if (normalizedEnd < normalizedStart) {
+        setError('结束日期不能早于开始日期');
+        return;
+      }
+      const next = withProbationPeriod(profile, normalizedStart, normalizedEnd);
       if (!next) {
-        setError(fieldError(activeField.key));
+        setError('日期格式无法识别，示例 2026-10-10');
         return;
       }
       patch = { probationStartDate: next.probationStartDate, cycleStartDay: next.cycleStartDay, regularStartDate: next.regularStartDate };
@@ -90,7 +105,7 @@ export function WorkSettingsSection({ profile, section, reducedMotion, onChange 
       <Text style={styles.label}>{field.title}</Text>
       <Text style={styles.value}>{displayValue(profile, field.key)}</Text>
     </Pressable>)}
-    <Modal visible={!!activeField} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={() => setActiveField(null)}>
+    <ThemedModal visible={!!activeField} transparent animationType={motionLevel ? 'none' : 'fade'} onRequestClose={() => setActiveField(null)}>
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.title}>{activeField?.title ?? ''}</Text>
         <Text style={styles.description}>{activeField?.description ?? ''}</Text>
@@ -114,7 +129,7 @@ export function WorkSettingsSection({ profile, section, reducedMotion, onChange 
           <Pressable onPress={() => { void save(); }}><Text style={styles.save}>保存</Text></Pressable>
         </View>
       </View></View>
-    </Modal>
+    </ThemedModal>
   </>;
 }
 
@@ -150,14 +165,15 @@ function parseField(key: WorkFieldKey, raw: string): Partial<WorkProfile> | null
 
 
 function fieldError(key: WorkFieldKey): string {
-  if (key === 'probationPeriod') return '请输入真实日期，且结束日期不能早于开始日期。';
+  if (key === 'probationPeriod') return '日期格式无法识别，示例 2026-10-10';
   if (key === 'payday') return '请输入 1 到 31 之间的整数。';
   if (key === 'restDaysPerMonth') return '请输入 0 到 31 之间的整数。';
   if (key === 'workHoursPerDay') return '请输入大于 0 且不超过 24 的小时数。';
   return '请输入有效且不小于 0 的金额。';
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   row: { minHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   label: { fontSize: 12, color: colors.ink, flexShrink: 1 },
   value: { fontSize: 11, color: colors.muted, fontWeight: '700', fontVariant: ['tabular-nums'] },
@@ -172,4 +188,10 @@ const styles = StyleSheet.create({
   cancel: { fontSize: 13, color: colors.muted },
   save: { fontSize: 13, color: colors.success, fontWeight: '800' },
   error: { fontSize: 11, color: colors.danger, marginTop: 8 },
-});
+  });
+}
+
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => createStyles(colors), [colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.success, colors.surface]);
+}
