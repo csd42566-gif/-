@@ -3,6 +3,7 @@ dist/
 logs/
 .expo/
 .superpowers/
+.workbuddy/
 .tmp/
 .android-cmdline-tools.zip
 .android-cmdline-tools-extract/
