@@ -46,6 +46,7 @@ export interface Settings{
   workHoursPerDay:number;
   strictMode:boolean;
   repaymentReminders:boolean;
+  statusServiceEnabled:boolean;
   reducedMotion:boolean;
   accountDisplayOrder:string[];
   work:WorkProfile;
@@ -76,6 +77,7 @@ export const defaultSettings: Settings = {
   workHoursPerDay: 8,
   strictMode: false,
   repaymentReminders: true,
+  statusServiceEnabled: false,
   reducedMotion: false,
   accountDisplayOrder: [],
   work: defaultWorkProfile,

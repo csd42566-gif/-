@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, AppState, BackHandler, LayoutAnimation, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { Alert, AppState, BackHandler, LayoutAnimation, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, UIManager, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
@@ -39,11 +39,12 @@ const integrations = {
 } as const;
 type IntegrationKey = keyof typeof integrations;
 
-export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWorkProfile, onClockInAttendance, onMarkAttendanceRest, onCreateAccount, onReconcileBalances, onClearAllData, openModulePanel, onModulePanelOpened }: {
+export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWorkProfile, onSetStatusServiceEnabled, onClockInAttendance, onMarkAttendanceRest, onCreateAccount, onReconcileBalances, onClearAllData, openModulePanel, onModulePanelOpened }: {
   state: LedgerState;
   onChangeRiskMode: (mode: RiskCardMode) => void;
   onUpdateSettings: (patch: Partial<Settings>) => void;
   onUpdateWorkProfile: (patch: Partial<WorkProfile>) => Promise<void>;
+  onSetStatusServiceEnabled: (enabled: boolean) => Promise<void>;
   onClockInAttendance: (at: Date) => Promise<void>;
   onMarkAttendanceRest: (at: Date) => Promise<void>;
   onCreateAccount: (account: ReturnType<typeof createAccount>) => void;
@@ -69,6 +70,8 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
   const [reconcileModal, setReconcileModal] = useState(false);
   const [reconcileInputs, setReconcileInputs] = useState<Record<string, string>>({});
   const [reconcileError, setReconcileError] = useState('');
+  const [statusServiceBusy, setStatusServiceBusy] = useState(false);
+  const [statusServiceError, setStatusServiceError] = useState('');
   const lastReconcile = lastBalanceReconciliation(state);
   const settings = state.settings;
   const entries = logger.getEntries();
@@ -182,6 +185,18 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
       setAccountError(error instanceof Error && error.message === 'account-name-invalid' ? '请输入账户名称。' : '请输入不小于 0 的有效余额。');
     }
   };
+  const toggleStatusService = async (enabled: boolean) => {
+    setStatusServiceBusy(true);
+    setStatusServiceError('');
+    try {
+      await onSetStatusServiceEnabled(enabled);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      setStatusServiceError(code === 'notification-permission-denied' ? '未获得通知权限，无法启用常驻状态。' : '常驻状态切换失败，请重试。');
+    } finally {
+      setStatusServiceBusy(false);
+    }
+  };
   const clearLogs = () => Alert.alert('清空诊断日志？', '此操作不可撤销，不会删除账本交易。', [
     { text: '取消', style: 'cancel' },
     { text: '清空日志', style: 'destructive', onPress: () => { logger.clear(); setLogVersion(logVersion + 1); } },
@@ -261,7 +276,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
     </ScrollView> : <ScrollView contentContainerStyle={styles.scroll}>
       <Pressable onPress={() => setPage('me')} accessibilityRole="button" accessibilityLabel="返回我的" style={({ pressed }) => [styles.back, pressed && styles.pressed]}><Ionicons name="arrow-back" size={19} color={colors.ink} /><Text style={styles.backText}>返回我的</Text></Pressable>
       <Text style={styles.title}>设置</Text>
-      <Text style={styles.groupLabel}>偏好设置</Text><View style={styles.group}>{renderRow('strictMode')}{renderRow('repaymentReminders')}{renderRow('reducedMotion')}{renderRow('providerIconStyle')}</View>
+      <Text style={styles.groupLabel}>偏好设置</Text><View style={styles.group}><View style={styles.statusServiceRow}><View style={styles.statusServiceCopy}><Text style={styles.rowLabel}>状态栏常驻</Text><Text style={styles.statusServiceDescription}>显示已存、目标还差和本月缺口。ColorOS 可能杀服务，需要手动允许后台运行和自启动。</Text>{!!statusServiceError && <Text style={styles.error}>{statusServiceError}</Text>}</View><Switch value={settings.statusServiceEnabled} disabled={statusServiceBusy} onValueChange={(value) => { void toggleStatusService(value); }} trackColor={{ false: colors.line, true: colors.accentSoft }} thumbColor={settings.statusServiceEnabled ? colors.accent : colors.muted} /></View>{renderRow('strictMode')}{renderRow('repaymentReminders')}{renderRow('reducedMotion')}{renderRow('providerIconStyle')}</View>
       <Text style={styles.groupLabel}>连接与数据</Text><View style={styles.group}><Row label="支付通知识别" value={notificationAccess ? '已授权' : '未授权'} onPress={() => setIntegration('bank')} /><Row label="Root 状态检测" value={rootStatus === 'detected' ? '检测到标志' : rootStatus === 'not-detected' ? '未检测到' : '不可用'} onPress={() => setIntegration('root')} /><Row label="Magisk 控制面板" value="打开" onPress={() => setPage('module')} /><Row label="账号与云同步" value="本地模式" onPress={() => setIntegration('sync')} /><Row label="隐私说明" value="查看" onPress={() => setIntegration('privacy')} /></View>
       <Text style={styles.groupLabel}>数据管理</Text>
       <View style={styles.group}><Row label="导出数据备份" value="JSON" onPress={exportBackup} /><Row label="清空所有数据" value="危险操作" onPress={confirmClearAllData} /></View>
@@ -335,5 +350,6 @@ const styles = StyleSheet.create({
   log: { backgroundColor: colors.ink, borderRadius: radius.sm, padding: 12, minHeight: 64 }, logText: { fontFamily: 'monospace', fontSize: 10, color: colors.surface, lineHeight: 17 }, clear: { minHeight: 42, justifyContent: 'center', alignItems: 'center' }, clearText: { fontSize: 12, color: colors.danger, fontWeight: '800' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md, padding: 20, paddingBottom: 30 }, sheetTitle: { fontSize: 18, fontWeight: '900', color: colors.ink }, description: { fontSize: 12, lineHeight: 18, color: colors.muted, marginTop: 8, marginBottom: 12 }, input: { height: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, paddingHorizontal: 12, color: colors.ink, fontSize: 16 }, actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 24, marginTop: 18 }, cancel: { fontSize: 13, color: colors.muted }, save: { fontSize: 13, color: colors.success, fontWeight: '800' }, option: { minHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, optionLabel: { fontSize: 13, color: colors.ink }, selected: { fontSize: 11, color: colors.success, fontWeight: '700' }, detail: { fontSize: 13, color: colors.ink, lineHeight: 21, marginTop: 14 }, done: { height: 44, backgroundColor: colors.accent, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', marginTop: 20 }, secondaryDone: { backgroundColor: colors.soft, borderWidth: 1, borderColor: colors.line }, secondaryDoneText: { color: colors.ink }, doneText: { fontSize: 12, color: colors.surface, fontWeight: '800' },
   lastReconcile: { color: colors.muted, fontSize: 10, lineHeight: 16, paddingBottom: 8, fontVariant: ['tabular-nums'] }, reconcileList: { maxHeight: 360 }, reconcileRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line, gap: 7 }, reconcileHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 }, reconcileDiff: { color: colors.muted, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] }, reconcileDifference: { color: colors.danger }, reconcileNote: { color: colors.muted, fontSize: 10, lineHeight: 16, marginTop: 10 }, confirmButton: { height: 44, minWidth: 104, backgroundColor: colors.accent, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.4 },
+  statusServiceRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line }, statusServiceCopy: { flex: 1, paddingVertical: spacing.sm }, statusServiceDescription: { fontSize: 10, lineHeight: 16, color: colors.muted, marginTop: spacing.xxs },
   fieldLabel: { fontSize: 11, color: colors.muted, marginTop: 14, marginBottom: 7 }, kindChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, kindChoice: { minHeight: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' }, kindSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, kindText: { fontSize: 11, color: colors.muted }, kindTextSelected: { color: colors.ink, fontWeight: '800' }, error: { fontSize: 11, color: colors.danger, marginTop: 8 },
 });

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LedgerState } from '../../core/model/finance';
 import { deriveFinancials } from '../../core/finance/derive';
+import { analyze } from '../../core/finance/analysis';
 import { calculateEarnings } from '../../core/work/attendance';
 import { ATTENDANCE_CLOCK_IN_REQUIRED, findPendingAttendanceRecord, localDateKey } from '../attendance/attendance';
 import { colors, spacing, radius } from '../../ui/theme';
@@ -51,6 +52,7 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
   useEffect(() => () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current); }, []);
   const attendance = state.attendance ?? [];
   const earnings = calculateEarnings(state.settings.work, attendance, now);
+  const insights = analyze(state, earnings, financials);
   const todayKey = localDateKey(now);
   const todayRecord = attendance.find((record) => record.date === todayKey);
   const pendingRecord = findPendingAttendanceRecord(attendance, now);
@@ -131,6 +133,14 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
         <Pressable onPress={onAdd} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
           <Text style={styles.primaryActionText}>＋ 记一笔</Text>
         </Pressable>
+      </View>
+
+      <View style={styles.insightsSection}>
+        {insights.map((insight, index) => <View key={insight.headline + index} style={[styles.insightCard, insight.level === 'danger' ? styles.insightDanger : insight.level === 'warn' ? styles.insightWarn : styles.insightInfo]}>
+          <Text style={[styles.insightHeadline, insight.level === 'danger' ? styles.insightDangerText : insight.level === 'warn' ? styles.insightWarnText : styles.insightInfoText]}>{insight.headline}</Text>
+          <Text style={styles.insightDetail}>{insight.detail}</Text>
+          {!!insight.action && <Text style={styles.insightAction}>{insight.action}</Text>}
+        </View>)}
       </View>
 
       <View style={styles.attendanceSection}>
@@ -270,6 +280,7 @@ const styles = StyleSheet.create({
   balance: { fontSize: 11, color: colors.muted, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
   primaryAction: { height: 48, marginTop: spacing.md, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   primaryActionText: { fontSize: 14, color: colors.surface, fontWeight: '800' },
+  insightsSection: { marginTop: spacing.md, gap: spacing.xs }, insightCard: { padding: spacing.sm, borderRadius: radius.sm, borderLeftWidth: 3 }, insightDanger: { backgroundColor: colors.dangerSoft, borderLeftColor: colors.danger }, insightWarn: { backgroundColor: colors.warningSoft, borderLeftColor: colors.warning }, insightInfo: { backgroundColor: colors.accentSoft, borderLeftColor: colors.accent }, insightHeadline: { fontSize: 13, fontWeight: '900' }, insightDangerText: { color: colors.danger }, insightWarnText: { color: colors.warning }, insightInfoText: { color: colors.ink }, insightDetail: { fontSize: 11, lineHeight: 17, color: colors.ink, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] }, insightAction: { fontSize: 10, lineHeight: 16, color: colors.accent, fontWeight: '800', marginTop: spacing.xxs },
   attendanceSection: { marginTop: spacing.sm },
   attendanceStatusText: { fontSize: 11, color: colors.muted, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: spacing.xs },
   attendancePrimaryWrap: { width: '100%' },

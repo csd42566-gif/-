@@ -17,6 +17,9 @@ type FinanceBridge = {
   openNotificationAccessSettings(): Promise<boolean>;
   getRootStatus(): Promise<'detected' | 'not-detected' | 'unavailable'>;
   consumeNotificationCandidates(): Promise<NativeNotificationEvent[]>;
+  startStatusService(text: string): Promise<boolean>;
+  updateStatusService(text: string): Promise<boolean>;
+  stopStatusService(): Promise<boolean>;
   readStatementFile(uri: string): Promise<string>;
   readStatementFileBase64(uri: string): Promise<string>;
   requestBillScan(): Promise<boolean>;
@@ -39,6 +42,9 @@ export const nativeFinance = {
   openNotificationAccessSettings: () => bridge?.openNotificationAccessSettings() ?? Promise.resolve(false),
   getRootStatus: () => bridge?.getRootStatus() ?? Promise.resolve('unavailable' as const),
   consumeNotificationCandidates: () => bridge?.consumeNotificationCandidates() ?? Promise.resolve([]),
+  startStatusService: (text: string) => bridge?.startStatusService(text) ?? Promise.reject(new Error('status-service-unavailable')),
+  updateStatusService: (text: string) => bridge?.updateStatusService(text) ?? Promise.reject(new Error('status-service-unavailable')),
+  stopStatusService: () => bridge?.stopStatusService() ?? Promise.reject(new Error('status-service-unavailable')),
   readStatementFile: (uri: string) => bridge?.readStatementFile(uri) ?? Promise.reject(new Error('statement-file-read-unavailable')),
   readStatementFileBase64: (uri: string) => bridge?.readStatementFileBase64(uri) ?? Promise.reject(new Error('statement-file-read-unavailable')),
   requestBillScan: () => bridge?.requestBillScan() ?? Promise.resolve(false),

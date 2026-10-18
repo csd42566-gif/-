@@ -39,6 +39,33 @@ class FinanceBridgeModule(context: ReactApplicationContext) : ReactContextBaseJa
     promise.resolve(if (indicators.any { File(it).exists() }) "detected" else "not-detected")
   }
 
+  @ReactMethod fun startStatusService(text: String, promise: Promise) {
+    try {
+      FinanceStatusService.start(reactApplicationContext, text)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("status-service-start-failed", error)
+    }
+  }
+
+  @ReactMethod fun updateStatusService(text: String, promise: Promise) {
+    try {
+      FinanceStatusService.update(reactApplicationContext, text)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("status-service-update-failed", error)
+    }
+  }
+
+  @ReactMethod fun stopStatusService(promise: Promise) {
+    try {
+      FinanceStatusService.stop(reactApplicationContext)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("status-service-stop-failed", error)
+    }
+  }
+
   @ReactMethod fun readStatementFile(uri: String, promise: Promise) {
     try {
       val bytes = openStatementStream(uri).use { it.readBytes() }

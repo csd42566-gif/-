@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import * as Notifications from 'expo-notifications';
 import { ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { HomeScreen } from '../src/features/home/HomeScreen';
 import { LedgerScreen } from '../src/features/ledger/LedgerScreen';
@@ -28,6 +29,7 @@ import { importStatement as importProviderStatement, StatementImportSummary } fr
 import { StatementProvider } from '../src/features/statement-import/statementTypes';
 import { clockInAttendance, clockOutAttendance, markAttendanceRest, undoAttendanceRest } from '../src/features/attendance/attendance';
 import { evaluateTransaction, PunishmentResult } from '../src/features/ledger/punishment';
+import { buildStatusNotificationPayload, formatStatusNotificationText } from '../src/integrations/notifications/statusService';
 import { BatchReviewResult, reviewPendingBatch as applyPendingBatch } from '../src/features/ledger/batchReview';
 
 type Draft = { type: TransactionType; amount: number; accountId: string; toAccountId?: string; category?: string; budgetGroup?: BudgetGroup; note?: string };
@@ -67,6 +69,11 @@ export default function Index() {
       }
       stateRef.current = next;
       setState(next);
+      if (next.settings.statusServiceEnabled) {
+        void nativeFinance.updateStatusService(formatStatusNotificationText(buildStatusNotificationPayload(next))).catch((caught) => {
+          logger.log('warn', 'STATUS_SERVICE_UPDATE_FAILED', caught instanceof Error ? caught.message : 'unknown');
+        });
+      }
       return next;
     });
     commitQueue.current = operation.then(() => undefined, () => undefined);
@@ -79,6 +86,11 @@ export default function Index() {
       setState(loaded);
       setAccountId(loaded.accounts[0]?.id ?? '');
       setToAccountId(loaded.accounts[1]?.id ?? loaded.accounts[0]?.id ?? '');
+      if (loaded.settings.statusServiceEnabled && nativeFinance.available) {
+        void nativeFinance.startStatusService(formatStatusNotificationText(buildStatusNotificationPayload(loaded))).catch((caught) => {
+          logger.log('warn', 'STATUS_SERVICE_RESTORE_FAILED', caught instanceof Error ? caught.message : 'unknown');
+        });
+      }
     }).catch(() => setError('本地账本读取失败，请重启应用重试。'));
   }, []);
   useEffect(() => {
@@ -191,6 +203,30 @@ export default function Index() {
   const updateSettings = async (patch: Partial<Settings>) => {
     await commit((previous) => ({ ...previous, settings: { ...previous.settings, ...patch } }));
   };
+  const setStatusServiceEnabled = async (enabled: boolean) => {
+    const current = stateRef.current;
+    if (!current) throw new Error('ledger-state-not-ready');
+    if (enabled) {
+      if (!nativeFinance.available) throw new Error('status-service-unavailable');
+      const existingPermission = await Notifications.getPermissionsAsync();
+      const permission = existingPermission.granted ? existingPermission : await Notifications.requestPermissionsAsync();
+      if (!permission.granted) throw new Error('notification-permission-denied');
+      await nativeFinance.startStatusService(formatStatusNotificationText(buildStatusNotificationPayload(current)));
+      try {
+        await commit((previous) => ({ ...previous, settings: { ...previous.settings, statusServiceEnabled: true } }));
+      } catch (caught) {
+        await nativeFinance.stopStatusService().catch(() => undefined);
+        throw caught;
+      }
+      return;
+    }
+    try {
+      await nativeFinance.stopStatusService();
+    } catch (caught) {
+      logger.log('warn', 'STATUS_SERVICE_STOP_FAILED', caught instanceof Error ? caught.message : 'unknown');
+    }
+    await commit((previous) => ({ ...previous, settings: { ...previous.settings, statusServiceEnabled: false } }));
+  };
   const updateWorkProfile = async (patch: Partial<WorkProfile>) => {
     await commit((previous) => ({
       ...previous,
@@ -287,7 +323,7 @@ export default function Index() {
     : tab === 'ledger' ? <LedgerScreen state={state} onAdd={openAdd} onReviewPending={reviewPending} onBatchConfirmPending={reviewPendingBatch} onImportStatement={importStatement} />
       : tab === 'debts' ? <DebtsScreen state={state} onImportRepayment={importRepayment} onImportInstallment={importInstallment} onUpdateRepaymentMode={updateDebtRepaymentMode} />
         : tab === 'goals' ? <GoalsScreen state={state} onSaveGoal={saveGoal} onUpdateAccountDisplayOrder={updateAccountDisplayOrder} />
-          : <SettingsScreen state={state} onChangeRiskMode={changeRiskMode} onUpdateSettings={updateSettings} onUpdateWorkProfile={updateWorkProfile} onClockInAttendance={clockIn} onMarkAttendanceRest={markRest} onCreateAccount={addAccount} onReconcileBalances={reconcileBalances} onClearAllData={clearAllData} openModulePanel={modulePanelRequested} onModulePanelOpened={() => setModulePanelRequested(false)} />;
+          : <SettingsScreen state={state} onChangeRiskMode={changeRiskMode} onUpdateSettings={updateSettings} onUpdateWorkProfile={updateWorkProfile} onSetStatusServiceEnabled={setStatusServiceEnabled} onClockInAttendance={clockIn} onMarkAttendanceRest={markRest} onCreateAccount={addAccount} onReconcileBalances={reconcileBalances} onClearAllData={clearAllData} openModulePanel={modulePanelRequested} onModulePanelOpened={() => setModulePanelRequested(false)} />;
 
   return <View style={styles.root}>
     <View style={styles.content}>{screen}</View>
