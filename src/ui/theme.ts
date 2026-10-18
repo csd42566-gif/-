@@ -1,2 +1,32 @@
-export const colors={background:'#F5F5F3',surface:'#FFFFFF',ink:'#242625',muted:'#777B78',line:'#E3E4E0',soft:'#ECEDE9',accent:'#545B58',accentSoft:'#D9DEDB',warning:'#A77C3E',warningSoft:'#F2E9D8',danger:'#9A5F5A',dangerSoft:'#F3E3E0',success:'#4B7868',successSoft:'#E2EEE9'};
-export const spacing={xs:6,sm:10,md:14,lg:18,xl:24};
+export const colors = {
+  background: '#F6F7F5',
+  surface: '#FFFFFF',
+  ink: '#1C1F1D',
+  muted: '#6B706C',
+  line: '#E2E4E1',
+  soft: '#EDEFEC',
+  accent: '#2F4A6D',
+  accentSoft: '#DDE5EF',
+  warning: '#9A6700',
+  warningSoft: '#FAEEDA',
+  danger: '#B3261E',
+  dangerSoft: '#FBE9E7',
+  success: '#1F6F4F',
+  successSoft: '#E3F0EA',
+  overlay: 'rgba(0,0,0,0.38)',
+};
+export const spacing = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 24, xl: 32 };
+export const radius = { sm: 8, md: 12, lg: 16, pill: 999 };
+export const providerColors = {
+  alipay: '#1677FF',
+  wechat: '#07C160',
+  cmb: '#D71920',
+  icbc: '#C7000B',
+  ccb: '#0066B3',
+  boc: '#B01F24',
+  citic: '#E60012',
+  douyin: '#161823',
+  dewu: '#111111',
+  jd: '#E1251B',
+  meituan: '#F5B800',
+};

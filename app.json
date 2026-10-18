@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "严格记账",
+    "name": "神罚",
     "slug": "strict-ledger",
-    "version": "0.1.0",
+    "version": "0.7.0",
     "orientation": "portrait",
     "scheme": "strictledger",
     "userInterfaceStyle": "automatic",
@@ -16,7 +16,17 @@
     },
     "android": {
       "package": "com.strictledger.app",
-      "versionCode": 1
+      "versionCode": 7,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FECEDE"
+      }
+    },
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FECEDE"
     }
   }
 }

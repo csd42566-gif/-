@@ -13,6 +13,7 @@ describe('ledger state migration', () => {
     expect(normalizeLedgerState(legacyState)).toEqual({
       ...legacyState,
       pendingTransactions: [],
+      attendance: [],
       settings: expect.objectContaining({
         riskCardMode: 'always',
         reminderMode: 'strict',
@@ -23,11 +24,75 @@ describe('ledger state migration', () => {
         strictMode: expect.any(Boolean),
         repaymentReminders: expect.any(Boolean),
         reducedMotion: expect.any(Boolean),
+        providerIconStyle: 'logo',
       }),
     });
   });
   test('defaults a missing detected-transaction queue when loading a legacy ledger', () => {
     const normalized = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null });
     expect(normalized.pendingTransactions).toEqual([]);
+  });
+
+  test('migrates legacy probationEndDate to regularStartDate', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [],
+      transactions: [],
+      debts: [],
+      goal: null,
+      settings: { work: { probationEndDate: '2026-11-10' } },
+    });
+
+    expect(normalized.settings.work.regularStartDate).toBe('2026-11-10');
+    expect(normalized.settings.work).not.toHaveProperty('probationEndDate');
+  });
+
+  test('migrates legacy goal progress and debt repayment mode', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [{ id: 'cash', name: 'Cash', kind: 'cash', balance: 1000 }],
+      transactions: [{ id: 'income', type: 'income', amount: 200, accountId: 'cash', occurredAt: '2026-01-01T00:00:00.000Z', source: 'manual' }],
+      debts: [{ id: 'debt', name: '信用卡', amount: 500, dueDate: '2026-10-20', kind: 'credit' }],
+      goal: { id: 'goal', name: 'Target', targetAmount: 1000, savedAmount: 100, deadline: '2026-12-31' },
+    });
+
+    expect(normalized.goal).toMatchObject({ startBalance: 700, startBalanceAt: '1970-01-01T00:00:00.000Z' });
+    expect(normalized.debts[0].repaymentMode).toBe('minimum');
+  });
+
+  test('falls back to logo icons when the saved icon style is invalid', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [], transactions: [], debts: [], goal: null,
+      settings: { providerIconStyle: 'invalid' },
+    });
+
+    expect(normalized.settings.providerIconStyle).toBe('logo');
+  });
+  test('cleans duplicate and invalid account display order values', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [],
+      transactions: [],
+      debts: [],
+      goal: null,
+      settings: { accountDisplayOrder: ['alipay', '', 'alipay', 42, 'wechat'] },
+    });
+
+    expect(normalized.settings.accountDisplayOrder).toEqual(['alipay', 'wechat']);
+  });
+
+  test('keeps valid repayment metadata and removes unsafe event values', () => {
+    const normalized = normalizeLedgerState({
+      accounts: [],
+      transactions: [],
+      pendingTransactions: [
+        { id: 'repayment', type: 'expense', amount: 120, source: 'notification', occurredAt: '2026-10-17T08:00:00.000Z', confidence: 0.9, eventKind: 'repayment', eventStatus: 'success', provider: '花呗', debtId: 'debt-1', counterparty: '张三' },
+        { id: 'unsafe', type: 'expense', amount: 10, source: 'notification', occurredAt: '2026-10-17T08:00:00.000Z', confidence: 0.5, eventKind: 'execute-code', eventStatus: 'unknown', provider: 'x'.repeat(300) },
+      ],
+      debts: [],
+      goal: null,
+    });
+
+    expect(normalized.pendingTransactions[0]).toMatchObject({ eventKind: 'repayment', eventStatus: 'success', provider: '花呗', debtId: 'debt-1', counterparty: '张三' });
+    expect(normalized.pendingTransactions[1]).not.toHaveProperty('eventKind');
+    expect(normalized.pendingTransactions[1]).not.toHaveProperty('eventStatus');
+    expect(normalized.pendingTransactions[1].provider).toHaveLength(80);
   });
 });

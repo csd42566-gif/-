@@ -1,0 +1,6 @@
+id=shenfa-core
+name=神罚核心
+version=v0.4.1
+versionCode=41
+author=神罚
+description=神罚记账的消费监听、代还识别、账单文件发现和 Root 配置模块。

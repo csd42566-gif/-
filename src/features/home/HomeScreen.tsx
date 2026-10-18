@@ -1,157 +1,318 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LedgerState } from '../../core/model/finance';
-import { calculateGoalPlan, calculateMonthlyBudget } from '../../core/finance/calculations';
-import { colors, spacing } from '../../ui/theme';
-import { MetricCard } from '../../ui/components/MetricCard';
-import { PressableCard } from '../../ui/components/PressableCard';
-import { SectionTitle } from '../../ui/components/SectionTitle';
+import { deriveFinancials } from '../../core/finance/derive';
+import { calculateEarnings } from '../../core/work/attendance';
+import { ATTENDANCE_CLOCK_IN_REQUIRED, findPendingAttendanceRecord, localDateKey } from '../attendance/attendance';
+import { colors, spacing, radius } from '../../ui/theme';
 
 interface HomeScreenProps {
   state: LedgerState;
+  amountAnimationKey: number;
   onAdd: () => void;
   onGoSettings: () => void;
   onGoGoals: () => void;
   onGoDebts: () => void;
+  onClockIn: () => Promise<void>;
+  onClockOut: () => Promise<void>;
+  onMarkRest: () => Promise<void>;
+  onUndoRest: () => Promise<void>;
 }
 
-export function HomeScreen({ state, onAdd, onGoSettings, onGoGoals, onGoDebts }: HomeScreenProps) {
-  const now = new Date();
-  const plan = calculateMonthlyBudget({
-    transactions: state.transactions,
-    debts: state.debts,
-    goal: state.goal,
-    monthlyIncome: state.settings.monthlyIncome,
-    essentialMonthlyExpenses: state.settings.essentialMonthlyExpenses,
-    workDaysPerMonth: state.settings.workDaysPerMonth,
-    workHoursPerDay: state.settings.workHoursPerDay,
-  }, now);
-  const goal = state.goal ? calculateGoalPlan(state.goal, now) : null;
-  const liquidBalance = state.accounts
-    .filter((account) => account.kind !== 'credit')
-    .reduce((sum, account) => sum + account.balance, 0);
-  const risk = plan.shortfall > 0;
-  const showRisk = state.settings.riskCardMode === 'always'
-    || (state.settings.riskCardMode === 'risk-only' && risk);
+export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onGoGoals, onGoDebts, onClockIn, onClockOut, onMarkRest, onUndoRest }: HomeScreenProps) {
+  const [attendanceBusy, setAttendanceBusy] = useState(false);
+  const [attendanceError, setAttendanceError] = useState('');
+  const [attendanceFeedback, setAttendanceFeedback] = useState('');
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status === 'active') setNow(new Date());
+    });
+    return () => subscription.remove();
+  }, []);
+  const financials = deriveFinancials(state, now);
+  const heroOpacity = useRef(new Animated.Value(1)).current;
+  const lastAmountAnimationKey = useRef(amountAnimationKey);
+  useEffect(() => {
+    if (lastAmountAnimationKey.current === amountAnimationKey) return;
+    lastAmountAnimationKey.current = amountAnimationKey;
+    heroOpacity.stopAnimation();
+    if (state.settings.reducedMotion) {
+      heroOpacity.setValue(1);
+      return;
+    }
+    heroOpacity.setValue(0);
+    const animation = Animated.timing(heroOpacity, { toValue: 1, duration: 200, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [amountAnimationKey, state.settings.reducedMotion, heroOpacity]);
+  useEffect(() => () => heroOpacity.stopAnimation(), [heroOpacity]);
+  useEffect(() => () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current); }, []);
+  const attendance = state.attendance ?? [];
+  const earnings = calculateEarnings(state.settings.work, attendance, now);
+  const todayKey = localDateKey(now);
+  const todayRecord = attendance.find((record) => record.date === todayKey);
+  const pendingRecord = findPendingAttendanceRecord(attendance, now);
+  const activePending = todayRecord?.clockIn && !todayRecord.clockOut
+    ? todayRecord
+    : !todayRecord
+      ? pendingRecord
+      : undefined;
+  const todayEarned = todayRecord?.status === 'worked' && todayRecord.clockOut ? earnings.dailySalary : 0;
+  const completed = todayRecord?.status === 'worked' && !!todayRecord.clockOut;
+  const resting = todayRecord?.status === 'rest';
+  const currentShiftHours = activePending?.clockIn ? hoursBetween(activePending.clockIn, now) : 0;
+  const completedHours = todayRecord?.clockIn && todayRecord.clockOut ? hoursBetween(todayRecord.clockIn, todayRecord.clockOut) : 0;
+  const risk = financials.shortfall > 0;
   const today = new Intl.DateTimeFormat('zh-CN', {
     weekday: 'long', month: 'long', day: 'numeric',
   }).format(now);
+  const attendanceStatus = pendingRecord
+    ? pendingRecord.date.slice(5) + ' 的班还没确认下班 · 点击确认'
+    : todayRecord?.status === 'rest'
+      ? '今天休息'
+      : todayRecord?.status === 'worked' && todayRecord.clockOut
+        ? '已下班 · 今天赚了 ¥' + earnings.dailySalary.toFixed(2)
+        : todayRecord?.clockIn
+          ? formatClockTime(todayRecord.clockIn) + ' 已打卡'
+          : '未打卡';
+  const showFeedback = (label: string, at: Date) => {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    setAttendanceFeedback('✓ ' + label + ' ' + formatClockTime(at.toISOString()));
+    feedbackTimer.current = setTimeout(() => {
+      setAttendanceFeedback('');
+      feedbackTimer.current = null;
+    }, 1500);
+  };
+  const runAttendanceAction = async (action: () => Promise<void>, label: string) => {
+    const actionTime = new Date();
+    setAttendanceBusy(true);
+    setAttendanceError('');
+    try {
+      await action();
+      showFeedback(label, actionTime);
+    } catch (error) {
+      setAttendanceError(error instanceof Error && error.message === ATTENDANCE_CLOCK_IN_REQUIRED
+        ? '请先打上班卡，再确认下班。'
+        : '考勤保存失败，请重试。');
+    } finally {
+      setAttendanceBusy(false);
+    }
+  };
+  const confirmClockOut = () => {
+    if (!activePending) return;
+    if (currentShiftHours < 2) {
+      Alert.alert('确认下班', '才上了 ' + currentShiftHours.toFixed(1) + ' 小时，确认下班？', [
+        { text: '继续上班', style: 'cancel' },
+        { text: '确认下班', onPress: () => { void runAttendanceAction(onClockOut, '下班已记录'); } },
+      ]);
+      return;
+    }
+    void runAttendanceAction(onClockOut, '下班已记录');
+  };
 
   return <View style={styles.root}>
     <ScrollView contentContainerStyle={styles.scroll}>
-      <Text style={styles.kicker}>{today}</Text>
-      <Text style={styles.title}>今天的预算</Text>
+      <Pressable
+        disabled={!pendingRecord || attendanceBusy}
+        onPress={confirmClockOut}
+        accessibilityRole={pendingRecord ? 'button' : undefined}
+        style={({ pressed }) => [styles.topMeta, pendingRecord && styles.pendingTopMeta, pressed && styles.pressed]}
+      >
+        <Text style={styles.kicker}>{today}</Text>
+        <Text style={[styles.topStatus, pendingRecord && styles.pendingStatus]} numberOfLines={2}>{attendanceStatus}</Text>
+      </Pressable>
 
       <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <Text style={styles.heroLabel}>今日建议可花</Text>
-          <Text style={styles.balance}>可用账户 ¥{liquidBalance.toFixed(0)}</Text>
-        </View>
-        <Text style={[styles.heroValue, plan.dailySpend === 0 && styles.warningValue]}>¥{plan.dailySpend.toFixed(2)}</Text>
-        <Text style={styles.heroCaption}>
-          根据月收入、必要支出、当月待还、目标储蓄和已记消费估算
+        <Text style={styles.heroLabel}>今日可花</Text>
+        <Animated.Text style={[styles.heroValue, financials.todaySpendable === 0 && styles.warningValue, { opacity: heroOpacity }]}>¥{financials.todaySpendable.toFixed(2)}</Animated.Text>
+        <Text style={styles.balance}>可用账户 ¥{financials.availableBalance.toFixed(2)}</Text>
+        <Pressable onPress={onAdd} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
+          <Text style={styles.primaryActionText}>＋ 记一笔</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.attendanceSection}>
+        <Text style={styles.attendanceStatusText}>
+          {attendanceFeedback ? '打卡已记录' : resting ? '今天休息' : completed ? '今天已完成' : activePending ? (activePending.date === todayKey ? formatClockTime(activePending.clockIn) + ' 已打卡' : '昨日 ' + formatClockTime(activePending.clockIn) + ' 已打卡') : '今天还没打卡'}
         </Text>
-        <View style={styles.heroActions}>
-          <Pressable onPress={onAdd} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
-            <Text style={styles.primaryActionText}>＋ 记一笔</Text>
-          </Pressable>
-          <Pressable onPress={onGoSettings} style={styles.secondaryAction}>
-            <Text style={styles.secondaryActionText}>预算依据 ›</Text>
-          </Pressable>
+        <AttendanceButton
+          variant="primary"
+          label={attendanceFeedback || (resting ? '撤销休息' : completed ? '今天已完成 · ' + completedHours.toFixed(1) + ' 小时' : activePending ? '下班确认' : '上班打卡')}
+          subLabel={!attendanceFeedback && activePending ? '已上 ' + currentShiftHours.toFixed(1) + ' 小时' : undefined}
+          tone={attendanceFeedback ? 'success' : resting ? 'rest' : completed ? 'muted' : activePending ? 'warning' : 'accent'}
+          dashed={resting}
+          disabled={attendanceBusy || completed || !!attendanceFeedback}
+          reducedMotion={state.settings.reducedMotion}
+          onPress={resting ? () => { void runAttendanceAction(onUndoRest, '休息已撤销'); } : activePending ? confirmClockOut : () => { void runAttendanceAction(onClockIn, '上班已记录'); }}
+        />
+        {completed && !attendanceFeedback && <Text style={styles.attendanceReason}>{formatClockTime(todayRecord?.clockIn)} 上班 · {formatClockTime(todayRecord?.clockOut)} 下班</Text>}
+        {!resting && !completed && !activePending && !attendanceFeedback && <AttendanceButton variant="text" label="今天休息" disabled={attendanceBusy} reducedMotion={state.settings.reducedMotion} onPress={() => { void runAttendanceAction(onMarkRest, '休息已记录'); }} />}
+        {!!attendanceError && <Text style={styles.attendanceError}>{attendanceError}</Text>}
+      </View>
+
+      <View style={styles.metricsRow}>
+        <View style={styles.metricCell}>
+          <Text style={styles.metricLabel}>本月已赚</Text>
+          <Text style={styles.metricValue}>¥{earnings.cycleEarned.toFixed(2)}</Text>
+          <Text style={styles.metricCaption}>本工资周期</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metricCell}>
+          <Text style={styles.metricLabel}>本月已花</Text>
+          <Text style={styles.metricValue}>¥{financials.monthSpent.toFixed(2)}</Text>
+          <Text style={styles.metricCaption}>自然月累计</Text>
         </View>
       </View>
 
-      <View style={styles.metrics}>
-        <MetricCard label="本月已记支出" value={`¥${plan.monthToDateExpenses.toFixed(0)}`} caption="仅统计本月支出" />
-        <MetricCard label="本月还需存" value={`¥${plan.goalDailySave.toFixed(0)} / 日`} caption={`剩余 ${goal?.remainingDays ?? 0} 天`} />
-      </View>
+      {state.goal ? <Pressable onPress={onGoGoals} accessibilityRole="button" style={({ pressed }) => [styles.goalSection, pressed && styles.pressed]}>
+        <View style={styles.sectionHeadingRow}>
+          <Text style={styles.sectionHeading}>存钱目标</Text>
+          <Text style={styles.sectionName}>{state.goal.name} ›</Text>
+        </View>
+        <View style={styles.goalLine}>
+          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${financials.goalProgress ?? 0}%` as `${number}%` }]} /></View>
+          <Text style={styles.goalValue}>{Math.round(financials.goalProgress ?? 0)}%</Text>
+          <Text style={styles.goalValue}>还差 ¥{financials.goalRemaining.toFixed(0)}</Text>
+          <Text style={styles.goalDate}>截止 {state.goal.deadline}</Text>
+        </View>
+        <Text style={styles.goalCaption}>每日需存 ¥{financials.goalDailySave.toFixed(2)} · 剩余 {financials.goalRemainingDays ?? 0} 天</Text>
+      </Pressable> : <Pressable onPress={onGoGoals} accessibilityRole="button" style={({ pressed }) => [styles.emptyGoal, pressed && styles.pressed]}>
+        <Text style={styles.sectionHeading}>设置第一个存钱目标</Text>
+        <Text style={styles.goalCaption}>建立目标后，这里会显示每日需存和截止日 ›</Text>
+      </Pressable>}
 
-      {state.goal ? <>
-        <SectionTitle>存钱目标</SectionTitle>
-        <PressableCard onPress={onGoGoals} accessibilityLabel="查看存钱目标">
-          <View style={styles.line}>
-            <Text style={styles.cardTitle}>{state.goal.name}</Text>
-            <Text style={styles.bold}>{Math.round(goal?.progress ?? 0)}%</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${goal?.progress ?? 0}%` }]} />
-          </View>
-          <View style={styles.line}>
-            <Text style={styles.muted}>还差 ¥{goal?.remainingAmount.toFixed(0)}</Text>
-            <Text style={styles.muted}>截止 {state.goal.deadline}</Text>
-          </View>
-        </PressableCard>
-      </> : <PressableCard onPress={onGoGoals} style={styles.emptyGoal}>
-        <Text style={styles.cardTitle}>设置第一个存钱目标 ›</Text>
-      </PressableCard>}
+      {state.settings.repaymentReminders && <Pressable onPress={onGoDebts} accessibilityRole="button" style={({ pressed }) => [styles.repaymentRow, pressed && styles.pressed]}>
+        <View style={styles.repaymentBar} />
+        <View style={styles.repaymentCopy}>
+          <Text style={styles.sectionHeading}>近期还款</Text>
+          <Text style={styles.repaymentCaption}>本月到期</Text>
+        </View>
+        <Text style={styles.repaymentAmount}>¥{financials.monthDue.toFixed(2)}</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>}
 
-      {state.settings.repaymentReminders && <>
-        <SectionTitle>近期还款</SectionTitle>
-        <PressableCard onPress={onGoDebts}>
-          <View style={styles.line}>
-            <Text style={styles.cardTitle}>本月到期</Text>
-            <Text style={styles.bold}>¥{plan.upcomingRepayments.toFixed(0)} ›</Text>
-          </View>
-          <Text style={styles.muted}>按到期日计入月度预算；查看全部还款计划</Text>
-        </PressableCard>
-      </>}
-
-      {showRisk && <>
-        <SectionTitle>现金流风险</SectionTitle>
-        <PressableCard style={risk ? styles.riskCard : styles.okCard}>
-          <Text style={[styles.riskTitle, !risk && styles.okTitle]}>
-            {risk ? `预计本月缺口 ¥${plan.shortfall.toFixed(0)}` : '当前计划有结余'}
-          </Text>
-          <Text style={styles.riskText}>
-            {risk
-              ? `按当前工作收入估算，约需增加 ${plan.extraWorkHours.toFixed(1)} 小时工作，或调整消费与目标。`
-              : '已将储蓄目标和到期还款纳入预算。'}
-          </Text>
-          <Pressable onPress={onGoSettings} accessibilityRole="button">
-            <Text style={styles.link}>调整收入、必要支出或显示方式</Text>
-          </Pressable>
-        </PressableCard>
-      </>}
-
-      {!showRisk && risk && <Pressable onPress={onGoSettings} style={styles.urgentNotice} accessibilityRole="button">
-        <Text style={styles.urgentText}>预算缺口 ¥{plan.shortfall.toFixed(0)} · 查看原因与方案 ›</Text>
+      {risk && <Pressable onPress={onGoSettings} accessibilityRole="button" style={({ pressed }) => [styles.riskNotice, pressed && styles.pressed]}>
+        <Text style={styles.riskTitle}>现金流缺口 ¥{financials.shortfall.toFixed(0)}</Text>
+        <Text style={styles.riskText}>约需增加 {financials.extraWorkHours.toFixed(1)} 小时工作，或调整消费与目标 ›</Text>
       </Pressable>}
     </ScrollView>
-  </View>;
+  </View>
+}
+
+function AttendanceButton({ label, subLabel, variant, tone = 'accent', dashed, onPress, disabled, reducedMotion }: {
+  label: string;
+  subLabel?: string;
+  variant: 'primary' | 'text';
+  tone?: 'accent' | 'warning' | 'success' | 'muted' | 'rest';
+  dashed?: boolean;
+  onPress: () => void;
+  disabled: boolean;
+  reducedMotion: boolean;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const animate = (toValue: number) => {
+    Animated.timing(scale, { toValue, duration: reducedMotion ? 0 : 150, useNativeDriver: true }).start();
+  };
+  useEffect(() => () => scale.stopAnimation(), [scale]);
+  const isText = variant === 'text';
+  return <Animated.View style={[isText ? styles.attendanceTextWrap : styles.attendancePrimaryWrap, { transform: [{ scale }] }]}>
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      onPressIn={() => animate(0.97)}
+      onPressOut={() => animate(1)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={[
+        isText ? styles.attendanceTextButton : styles.attendancePrimaryButton,
+        !isText && tone === 'warning' && styles.attendanceToneWarning,
+        !isText && tone === 'success' && styles.attendanceToneSuccess,
+        !isText && tone === 'muted' && styles.attendanceToneMuted,
+        !isText && tone === 'rest' && styles.attendanceToneRest,
+        dashed && styles.attendanceDashed,
+        disabled && !isText && tone !== 'muted' && tone !== 'success' && styles.disabled,
+      ]}
+    >
+      <Text style={[isText ? styles.attendanceTextLabel : styles.attendancePrimaryLabel, !isText && tone === 'muted' && styles.attendanceMutedText, !isText && tone === 'rest' && styles.attendanceMutedText]}>{label}</Text>
+      {!!subLabel && <Text style={styles.attendanceSubLabel}>{subLabel}</Text>}
+    </Pressable>
+  </Animated.View>;
+}
+
+function hoursBetween(startValue: string, endValue: string | Date): number {
+  const start = new Date(startValue).getTime();
+  const end = endValue instanceof Date ? endValue.getTime() : new Date(endValue).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
+  return (end - start) / 3600000;
+}
+
+function formatClockTime(value?: string): string {
+  if (!value) return '--:--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--:--';
+  return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') + ':' + String(date.getSeconds()).padStart(2, '0');
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg, paddingBottom: 32 },
-  kicker: { fontSize: 12, color: colors.muted },
-  title: { fontSize: 25, fontWeight: '800', color: colors.ink, marginTop: 4 },
-  hero: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: spacing.lg, marginTop: spacing.lg },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  scroll: { padding: spacing.lg, paddingBottom: spacing.xl },
+  topMeta: { minHeight: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, borderRadius: radius.sm },
+  pendingTopMeta: { margin: -spacing.xs, paddingHorizontal: spacing.sm, backgroundColor: colors.warningSoft },
+  kicker: { fontSize: 11, color: colors.muted, flexShrink: 0 },
+  topStatus: { fontSize: 11, color: colors.muted, textAlign: 'right', flexShrink: 1, fontVariant: ['tabular-nums'] },
+  pendingStatus: { color: colors.warning, fontWeight: '700' },
+  hero: { backgroundColor: colors.accentSoft, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.md },
   heroLabel: { fontSize: 13, color: colors.muted, fontWeight: '700' },
-  balance: { fontSize: 11, color: colors.muted },
-  heroValue: { fontSize: 38, fontWeight: '900', color: colors.ink, marginTop: 7 },
+  heroValue: { fontSize: 40, fontWeight: '700', color: colors.ink, marginTop: spacing.xs, fontVariant: ['tabular-nums'] },
   warningValue: { color: colors.danger },
-  heroCaption: { fontSize: 11, color: colors.muted, lineHeight: 17, marginTop: 4 },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 },
-  primaryAction: { backgroundColor: colors.accent, borderRadius: 8, minHeight: 42, paddingHorizontal: 16, justifyContent: 'center' },
-  primaryActionText: { fontSize: 13, color: colors.surface, fontWeight: '800' },
-  secondaryAction: { minHeight: 42, justifyContent: 'center' },
-  secondaryActionText: { fontSize: 12, color: colors.accent, fontWeight: '700' },
-  metrics: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  cardTitle: { fontSize: 13, fontWeight: '800', color: colors.ink, flexShrink: 1 },
-  bold: { fontSize: 13, fontWeight: '800', color: colors.ink },
-  muted: { fontSize: 11, color: colors.muted, lineHeight: 17 },
-  progressTrack: { height: 7, backgroundColor: colors.line, borderRadius: 4, overflow: 'hidden', marginVertical: 7 },
+  balance: { fontSize: 11, color: colors.muted, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
+  primaryAction: { height: 48, marginTop: spacing.md, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  primaryActionText: { fontSize: 14, color: colors.surface, fontWeight: '800' },
+  attendanceSection: { marginTop: spacing.sm },
+  attendanceStatusText: { fontSize: 11, color: colors.muted, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: spacing.xs },
+  attendancePrimaryWrap: { width: '100%' },
+  attendancePrimaryButton: { minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  attendancePrimaryLabel: { fontSize: 16, fontWeight: '800', color: colors.surface, fontVariant: ['tabular-nums'] },
+  attendanceSubLabel: { fontSize: 12, fontWeight: '700', color: colors.surface, marginTop: 2, fontVariant: ['tabular-nums'] },
+  attendanceToneWarning: { backgroundColor: colors.warning },
+  attendanceToneSuccess: { backgroundColor: colors.success },
+  attendanceToneMuted: { backgroundColor: colors.soft },
+  attendanceToneRest: { backgroundColor: colors.surface },
+  attendanceMutedText: { color: colors.muted },
+  attendanceDashed: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.muted },
+  attendanceTextWrap: { marginTop: spacing.xs, width: '100%' },
+  attendanceTextButton: { height: 48, alignItems: 'center', justifyContent: 'center' },
+  attendanceTextLabel: { fontSize: 12, color: colors.muted, fontWeight: '700' },
+  attendanceReason: { fontSize: 10, color: colors.muted, textAlign: 'center', marginTop: spacing.xs, fontVariant: ['tabular-nums'] },
+  disabled: { opacity: 0.35 },
+  attendanceError: { fontSize: 11, color: colors.danger, marginTop: spacing.xs },
+  metricsRow: { flexDirection: 'row', marginTop: spacing.lg, paddingVertical: spacing.md, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
+  metricCell: { flex: 1, paddingHorizontal: spacing.xs },
+  metricDivider: { width: 1, backgroundColor: colors.line },
+  metricLabel: { fontSize: 11, color: colors.muted },
+  metricValue: { fontSize: 20, fontWeight: '800', color: colors.ink, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
+  metricCaption: { fontSize: 10, color: colors.muted, marginTop: spacing.xxs },
+  goalSection: { minHeight: 76, justifyContent: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
+  emptyGoal: { minHeight: 64, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: colors.line },
+  sectionHeadingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  sectionHeading: { fontSize: 12, fontWeight: '800', color: colors.ink },
+  sectionName: { fontSize: 11, color: colors.muted, flexShrink: 1 },
+  goalLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  progressTrack: { flex: 1, height: 6, backgroundColor: colors.line, borderRadius: radius.pill, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.success },
-  emptyGoal: { marginTop: spacing.sm },
-  riskCard: { backgroundColor: colors.warningSoft, borderColor: '#E7D3B0' },
-  okCard: { backgroundColor: colors.successSoft, borderColor: '#C8DDD3' },
-  riskTitle: { fontSize: 15, fontWeight: '800', color: colors.warning },
-  okTitle: { color: colors.success },
-  riskText: { fontSize: 12, color: colors.ink, lineHeight: 18, marginTop: 6 },
-  link: { fontSize: 11, color: colors.accent, marginTop: 12, fontWeight: '700' },
-  urgentNotice: { marginTop: 12, padding: 12, backgroundColor: colors.dangerSoft, borderRadius: 8 },
-  urgentText: { color: colors.danger, fontSize: 12, fontWeight: '800' },
-  pressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
+  goalValue: { fontSize: 10, color: colors.ink, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  goalDate: { fontSize: 10, color: colors.muted, fontVariant: ['tabular-nums'] },
+  goalCaption: { fontSize: 10, color: colors.muted, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
+  repaymentRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
+  repaymentBar: { width: 4, alignSelf: 'stretch', marginVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.warning },
+  repaymentCopy: { flex: 1 },
+  repaymentCaption: { fontSize: 10, color: colors.muted, marginTop: 2 },
+  repaymentAmount: { fontSize: 14, fontWeight: '800', color: colors.ink, fontVariant: ['tabular-nums'] },
+  chevron: { fontSize: 20, color: colors.muted },
+  riskNotice: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.dangerSoft },
+  riskTitle: { fontSize: 13, fontWeight: '800', color: colors.danger, fontVariant: ['tabular-nums'] },
+  riskText: { fontSize: 11, color: colors.ink, lineHeight: 17, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
+  pressed: { opacity: 0.75, transform: [{ scale: 0.98 }] },
 });

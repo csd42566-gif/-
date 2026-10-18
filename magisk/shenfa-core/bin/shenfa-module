@@ -1,0 +1,78 @@
+#!/system/bin/sh
+
+MODDIR=${0%/*}/..
+CONFIG="$MODDIR/config/active.conf"
+
+case "$1" in
+  status)
+    [ -f "$MODDIR/module.prop" ] && cat "$MODDIR/module.prop"
+    if [ -f "$CONFIG" ]; then
+      cat "$CONFIG"
+    else
+      echo "module_enabled=0"
+    fi
+    exit 0
+    ;;
+  enable)
+    sed -i 's/^module_enabled=.*/module_enabled=1/' "$CONFIG"
+    exit 0
+    ;;
+  disable)
+    sed -i 's/^module_enabled=.*/module_enabled=0/' "$CONFIG"
+    exit 0
+    ;;
+  set-feature)
+    case "$2" in
+      notificationCapture) key=notification_capture ;;
+      repaymentDetection) key=repayment_detection ;;
+      billScan) key=bill_scan ;;
+      rootEnhancement) key=root_enhancement ;;
+      cloudSync) key=cloud_sync ;;
+      moduleEnabled) key=module_enabled ;;
+      *)
+        echo "unknown feature"
+        exit 2
+        ;;
+    esac
+    value=0
+    if [ "$3" = "true" ] || [ "$3" = "1" ]; then
+      value=1
+    fi
+    mkdir -p "$MODDIR/config"
+    touch "$CONFIG"
+    sed -i "s/^$key=.*/$key=$value/" "$CONFIG"
+    grep -q "^$key=" "$CONFIG" || printf '\n%s=%s\n' "$key" "$value" >> "$CONFIG"
+    exit 0
+    ;;
+  scan)
+    "$MODDIR/bin/bill-scan.sh"
+    exit $?
+    ;;
+  scan-request)
+    mkdir -p "$MODDIR/config"
+    touch "$MODDIR/config/bill-scan.request"
+    exit 0
+    ;;
+  bill-scan)
+    case "$2" in
+      on)
+        sed -i 's/^bill_scan=.*/bill_scan=1/' "$CONFIG"
+        grep -q '^bill_scan=' "$CONFIG" || printf '\nbill_scan=1\n' >> "$CONFIG"
+        exit 0
+        ;;
+      off)
+        sed -i 's/^bill_scan=.*/bill_scan=0/' "$CONFIG"
+        grep -q '^bill_scan=' "$CONFIG" || printf '\nbill_scan=0\n' >> "$CONFIG"
+        exit 0
+        ;;
+      *)
+        echo "用法：shenfa-module bill-scan on|off"
+        exit 2
+        ;;
+    esac
+    ;;
+  *)
+    echo "用法：shenfa-module status|enable|disable|set-feature <key> <0|1>|scan|scan-request|bill-scan on|off"
+    exit 2
+    ;;
+esac
