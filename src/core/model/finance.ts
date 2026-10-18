@@ -50,6 +50,7 @@ export interface Settings{
   strictMode:boolean;
   repaymentReminders:boolean;
   statusServiceEnabled:boolean;
+  hapticsEnabled:boolean;
   reducedMotion:boolean;
   accountDisplayOrder:string[];
   accountMapping:Record<string,string>;
@@ -87,6 +88,7 @@ export const defaultSettings: Settings = {
   strictMode: false,
   repaymentReminders: true,
   statusServiceEnabled: false,
+  hapticsEnabled: true,
   reducedMotion: false,
   accountDisplayOrder: [],
   accountMapping: {},

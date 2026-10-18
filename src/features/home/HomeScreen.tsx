@@ -6,6 +6,7 @@ import { analyze } from '../../core/finance/analysis';
 import { calculateEarnings } from '../../core/work/attendance';
 import { ATTENDANCE_CLOCK_IN_REQUIRED, findPendingAttendanceRecord, localDateKey } from '../attendance/attendance';
 import { colors, spacing, radius } from '../../ui/theme';
+import { QPressable } from '../../ui/components/QPressable';
 
 interface HomeScreenProps {
   state: LedgerState;
@@ -130,9 +131,9 @@ export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onG
         <Text style={styles.heroLabel}>今日可花</Text>
         <Animated.Text style={[styles.heroValue, financials.todaySpendable === 0 && styles.warningValue, { opacity: heroOpacity }]}>¥{financials.todaySpendable.toFixed(2)}</Animated.Text>
         <Text style={styles.balance}>可用账户 ¥{financials.availableBalance.toFixed(2)}</Text>
-        <Pressable onPress={onAdd} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
+        <QPressable onPress={onAdd} reducedMotion={state.settings.reducedMotion} containerStyle={styles.primaryActionWrap} style={styles.primaryAction} accessibilityRole="button">
           <Text style={styles.primaryActionText}>＋ 记一笔</Text>
-        </Pressable>
+        </QPressable>
       </View>
 
       <View style={styles.insightsSection}>
@@ -219,8 +220,15 @@ function AttendanceButton({ label, subLabel, variant, tone = 'accent', dashed, o
   reducedMotion: boolean;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const animate = (toValue: number) => {
-    Animated.timing(scale, { toValue, duration: reducedMotion ? 0 : 150, useNativeDriver: true }).start();
+  const animateIn = () => {
+    scale.stopAnimation();
+    if (reducedMotion) { scale.setValue(1); return; }
+    Animated.timing(scale, { toValue: 0.96, duration: 120, useNativeDriver: true }).start();
+  };
+  const animateOut = () => {
+    scale.stopAnimation();
+    if (reducedMotion) { scale.setValue(1); return; }
+    Animated.spring(scale, { toValue: 1, damping: 12, stiffness: 300, useNativeDriver: true }).start();
   };
   useEffect(() => () => scale.stopAnimation(), [scale]);
   const isText = variant === 'text';
@@ -228,8 +236,8 @@ function AttendanceButton({ label, subLabel, variant, tone = 'accent', dashed, o
     <Pressable
       disabled={disabled}
       onPress={onPress}
-      onPressIn={() => animate(0.97)}
-      onPressOut={() => animate(1)}
+      onPressIn={() => { if (!isText) animateIn(); }}
+      onPressOut={() => { if (!isText) animateOut(); }}
       accessibilityRole="button"
       accessibilityLabel={label}
       style={[
@@ -275,7 +283,7 @@ const styles = StyleSheet.create({
   heroValue: { fontSize: 40, fontWeight: '700', color: colors.ink, marginTop: spacing.xs, fontVariant: ['tabular-nums'] },
   warningValue: { color: colors.danger },
   balance: { fontSize: 11, color: colors.muted, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
-  primaryAction: { height: 48, marginTop: spacing.md, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  primaryActionWrap: { width: '100%', marginTop: spacing.md }, primaryAction: { height: 48, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   primaryActionText: { fontSize: 14, color: colors.surface, fontWeight: '800' },
   insightsSection: { marginTop: spacing.md, gap: spacing.xs }, insightCard: { padding: spacing.sm, borderRadius: radius.sm, borderLeftWidth: 3 }, insightDanger: { backgroundColor: colors.dangerSoft, borderLeftColor: colors.danger }, insightWarn: { backgroundColor: colors.warningSoft, borderLeftColor: colors.warning }, insightInfo: { backgroundColor: colors.accentSoft, borderLeftColor: colors.accent }, insightHeadline: { fontSize: 13, fontWeight: '900' }, insightDangerText: { color: colors.danger }, insightWarnText: { color: colors.warning }, insightInfoText: { color: colors.ink }, insightDetail: { fontSize: 11, lineHeight: 17, color: colors.ink, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] }, insightAction: { fontSize: 10, lineHeight: 16, color: colors.accent, fontWeight: '800', marginTop: spacing.xxs },
   attendanceSection: { marginTop: spacing.sm },

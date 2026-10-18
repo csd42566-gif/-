@@ -25,6 +25,7 @@ describe('ledger state migration', () => {
         strictMode: expect.any(Boolean),
         repaymentReminders: expect.any(Boolean),
         reducedMotion: expect.any(Boolean),
+        hapticsEnabled: true,
         providerIconStyle: 'logo',
         accountMapping: {},
       }),
@@ -93,6 +94,14 @@ describe('ledger state migration', () => {
 
     expect(normalized.settings.essentialItems).toHaveLength(2);
     expect(normalized.settings.essentialMonthlyExpenses).toBe(45);
+  });
+
+  test('defaults haptics on for old data and preserves an explicit opt-out', () => {
+    const legacy = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null });
+    const disabled = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { hapticsEnabled: false } });
+
+    expect(legacy.settings.hapticsEnabled).toBe(true);
+    expect(disabled.settings.hapticsEnabled).toBe(false);
   });
 
   test('sanitizes account mapping and drops invalid entries', () => {

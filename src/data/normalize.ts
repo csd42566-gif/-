@@ -11,6 +11,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     ? rawSettings.providerIconStyle
     : defaultSettings.providerIconStyle;
   const accountMapping = normalizeAccountMapping(rawSettings.accountMapping);
+  const hapticsEnabled = rawSettings.hapticsEnabled !== false;
   const essentialItems = normalizeEssentialItems(rawSettings.essentialItems, rawSettings.essentialMonthlyExpenses);
   const essentialMonthlyExpenses = essentialItemsTotal(essentialItems);
   const work = normalizeWorkProfile(rawSettings.work);
@@ -21,7 +22,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     debts: normalizeDebts(state.debts),
     goal: normalizeGoal(state.goal, Array.isArray(state.accounts) ? state.accounts : [], Array.isArray(state.transactions) ? state.transactions : []),
     attendance: normalizeAttendance(state.attendance),
-    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, essentialItems, essentialMonthlyExpenses, providerIconStyle },
+    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, hapticsEnabled, essentialItems, essentialMonthlyExpenses, providerIconStyle },
   };
 }
 

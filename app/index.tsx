@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
-import { ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from 'react-native';
 import { HomeScreen } from '../src/features/home/HomeScreen';
+import { QPressable } from '../src/ui/components/QPressable';
 import { LedgerScreen } from '../src/features/ledger/LedgerScreen';
 import { DebtsScreen } from '../src/features/debts/DebtsScreen';
 import { GoalsScreen } from '../src/features/goals/GoalsScreen';
@@ -55,6 +56,7 @@ export default function Index() {
   const punishmentShake = useRef(new Animated.Value(0)).current;
   const stateRef = useRef<LedgerState | null>(null);
   const commitQueue = useRef<Promise<void>>(Promise.resolve());
+  const vibrateIfEnabled = () => { if (stateRef.current?.settings.hapticsEnabled) Vibration.vibrate(8); };
   const commit = useCallback(async (updater: (previous: LedgerState) => LedgerState): Promise<LedgerState> => {
     const operation = commitQueue.current.then(async () => {
       const previous = stateRef.current;
@@ -178,6 +180,7 @@ export default function Index() {
         : null);
       setImpact(impactFor(next, draft));
       setError('');
+      vibrateIfEnabled();
       logger.log('info', 'TRANSACTION_CONFIRMED', '');
     } catch { setError(type === 'transfer' ? '转账账户无效，请选择两个不同账户。' : '记账失败，请检查金额和账户后重试。'); }
   };
@@ -236,21 +239,25 @@ export default function Index() {
   const clockIn = async (at = new Date()) => {
     const now = at;
     await commit((previous) => clockInAttendance(previous, now));
+    vibrateIfEnabled();
     logger.log('info', 'ATTENDANCE_CLOCK_IN', '');
   };
   const clockOut = async () => {
     const now = new Date();
     await commit((previous) => clockOutAttendance(previous, now));
+    vibrateIfEnabled();
     logger.log('info', 'ATTENDANCE_CLOCK_OUT', '');
   };
   const markRest = async (at = new Date()) => {
     const now = at;
     await commit((previous) => markAttendanceRest(previous, now));
+    vibrateIfEnabled();
     logger.log('info', 'ATTENDANCE_REST', '');
   };
   const undoRest = async () => {
     const now = new Date();
     await commit((previous) => undoAttendanceRest(previous, now));
+    vibrateIfEnabled();
     logger.log('info', 'ATTENDANCE_REST_UNDONE', '');
   };
   const updateAccountDisplayOrder = async (order: string[]) => {
@@ -349,7 +356,7 @@ export default function Index() {
               {state.settings.reminderMode === 'strict' && preview.shortfall > 0 && <InfoRow label="计划缺口 / 工作时间" value={`¥${preview.shortfall.toFixed(0)} · ${preview.extraWorkHours.toFixed(1)} 小时`} />}
             </View>}
             {!!error && <Text style={styles.error}>{error}</Text>}
-            <Pressable disabled={!draft} style={[styles.primaryButton, !draft && styles.disabled]} onPress={confirm}><Text style={styles.primaryText}>保存记录</Text></Pressable>
+            <QPressable disabled={!draft} reducedMotion={state.settings.reducedMotion} containerStyle={styles.primaryButtonWrap} style={[styles.primaryButton, !draft && styles.disabled]} onPress={() => { void confirm(); }}><Text style={styles.primaryText}>保存记录</Text></QPressable>
           </> : <>
             {state.settings.reminderMode === 'punish' && punishment && punishment.level !== 'none' && <Animated.View style={[styles.punishmentBlock, punishment.level === 'severe' ? styles.punishmentSevere : punishment.level === 'punish' ? styles.punishmentPunish : styles.punishmentWarn, { opacity: punishmentAnim, transform: [{ translateY: punishmentAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { translateX: punishmentShake }] }]}>
               <Text style={[styles.punishmentTitle, punishment.level === 'severe' ? styles.punishmentSevereText : punishment.level === 'punish' ? styles.punishmentPunishText : styles.punishmentWarnText]}>{punishment.title}</Text>
@@ -358,7 +365,7 @@ export default function Index() {
             <Text style={styles.resultText}>{type === 'expense' ? `支出后今日建议可花 ¥${impact.dailySpend.toFixed(2)}` : type === 'income' ? '收入已记入所选账户' : '账户间转账已完成'}</Text>
             <View style={styles.preview}><InfoRow label="账户余额" value={`¥${impact.balance.toFixed(2)}`} />{type !== 'transfer' && <InfoRow label="距离目标" value={`还差 ¥${impact.goalRemaining.toFixed(0)}`} />}{state.settings.reminderMode !== 'light' && type !== 'transfer' && <InfoRow label="目标每日需存" value={`¥${impact.goalDailySave.toFixed(2)}`} />}</View>
             <Text style={[styles.noteText, (impact.shortfall > 0 || (state.settings.strictMode && impact.dailySpend === 0)) && styles.warningText]}>{impact.shortfall > 0 ? `本月计划缺口 ¥${impact.shortfall.toFixed(0)}，约合 ${impact.extraWorkHours.toFixed(1)} 小时工作收入。` : state.settings.strictMode && impact.dailySpend === 0 ? '今日建议预算已用尽，请先核对现金流。仍可继续记录真实消费。' : state.settings.reminderMode === 'light' ? '预算已更新；提醒仅供参考，不会阻止必要消费。' : '提醒仅用于辅助预算，不会阻止必要消费。'}</Text>
-            <Pressable style={styles.primaryButton} onPress={closeTransactionModal}><Text style={styles.primaryText}>完成</Text></Pressable>
+            <QPressable reducedMotion={state.settings.reducedMotion} containerStyle={styles.primaryButtonWrap} style={styles.primaryButton} onPress={closeTransactionModal}><Text style={styles.primaryText}>完成</Text></QPressable>
           </>}
         </Animated.View>
       </KeyboardAvoidingView>
@@ -369,4 +376,4 @@ export default function Index() {
 function Chip({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) { return <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} style={[styles.chip, selected && styles.chipSelected]}><Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text></Pressable>; }
 function InfoRow({ label, value }: { label: string; value: string }) { return <View style={styles.infoRow}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View>; }
 
-const styles = StyleSheet.create({ root:{flex:1,backgroundColor:colors.background},punishmentBlock:{marginTop:14,padding:14,borderRadius: radius.md,borderWidth:1},punishmentSevere:{backgroundColor:colors.dangerSoft,borderColor:colors.danger},punishmentPunish:{backgroundColor:colors.warningSoft,borderColor:colors.warning},punishmentWarn:{backgroundColor:colors.soft,borderColor:colors.line},punishmentTitle:{fontSize:16,fontWeight:'900'},punishmentSevereText:{color:colors.danger},punishmentPunishText:{color:colors.warning},punishmentWarnText:{color:colors.ink},punishmentDetail:{fontSize:12,fontVariant:['tabular-nums'],lineHeight:19,color:colors.ink,marginTop:6},content:{flex:1},loading:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:colors.background},loadingText:{marginTop:10,color:colors.muted,fontSize:12},modalBackdrop:{flex:1,justifyContent:'flex-end',backgroundColor:colors.overlay},dismissArea:{flex:1},sheet:{maxHeight:'92%',backgroundColor:colors.surface,borderTopLeftRadius: radius.lg,borderTopRightRadius: radius.lg,padding:spacing.lg,paddingBottom:28},grab:{width:40,height:4,borderRadius: radius.sm,backgroundColor:colors.line,alignSelf:'center',marginBottom:14},sheetTitle:{fontSize:20,fontWeight:'900',color:colors.ink},choices:{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:10},chip:{minHeight:40,justifyContent:'center',paddingHorizontal:10,borderWidth:1,borderColor:colors.line,borderRadius: radius.sm,backgroundColor:colors.surface},chipSelected:{backgroundColor:colors.accentSoft,borderColor:colors.accent},chipText:{fontSize:11,color:colors.muted,fontVariant:['tabular-nums']},chipTextSelected:{color:colors.ink,fontWeight:'800'},amountInput:{fontSize:32,fontWeight:'900',fontVariant:['tabular-nums'],color:colors.ink,borderBottomWidth:1,borderBottomColor:colors.line,paddingVertical:10,marginTop:12},fieldLabel:{fontSize:11,color:colors.muted,marginTop:12},noteInput:{height:40,borderBottomWidth:1,borderBottomColor:colors.line,color:colors.ink,marginTop:10},preview:{marginTop:12,borderTopWidth:1,borderTopColor:colors.line},infoRow:{minHeight:38,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderBottomColor:colors.line},infoLabel:{fontSize:11,color:colors.muted},infoValue:{fontSize:12,fontWeight:'800',fontVariant:['tabular-nums'],color:colors.ink},primaryButton:{backgroundColor:colors.accent,borderRadius: radius.sm,minHeight:44,justifyContent:'center',alignItems:'center',marginTop:14},primaryText:{color:colors.surface,fontSize:13,fontWeight:'800'},disabled:{opacity:.45},resultText:{fontSize:14,fontWeight:'700',fontVariant:['tabular-nums'],color:colors.ink,marginTop:14},noteText:{fontSize:11,color:colors.muted,marginTop:10},warningText:{color:colors.danger,fontWeight:'800'},error:{fontSize:11,color:colors.danger,marginTop:8} });
+const styles = StyleSheet.create({ root:{flex:1,backgroundColor:colors.background},punishmentBlock:{marginTop:14,padding:14,borderRadius: radius.md,borderWidth:1},punishmentSevere:{backgroundColor:colors.dangerSoft,borderColor:colors.danger},punishmentPunish:{backgroundColor:colors.warningSoft,borderColor:colors.warning},punishmentWarn:{backgroundColor:colors.soft,borderColor:colors.line},punishmentTitle:{fontSize:16,fontWeight:'900'},punishmentSevereText:{color:colors.danger},punishmentPunishText:{color:colors.warning},punishmentWarnText:{color:colors.ink},punishmentDetail:{fontSize:12,fontVariant:['tabular-nums'],lineHeight:19,color:colors.ink,marginTop:6},content:{flex:1},loading:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:colors.background},loadingText:{marginTop:10,color:colors.muted,fontSize:12},modalBackdrop:{flex:1,justifyContent:'flex-end',backgroundColor:colors.overlay},dismissArea:{flex:1},sheet:{maxHeight:'92%',backgroundColor:colors.surface,borderTopLeftRadius: radius.lg,borderTopRightRadius: radius.lg,padding:spacing.lg,paddingBottom:28},grab:{width:40,height:4,borderRadius: radius.sm,backgroundColor:colors.line,alignSelf:'center',marginBottom:14},sheetTitle:{fontSize:20,fontWeight:'900',color:colors.ink},choices:{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:10},chip:{minHeight:40,justifyContent:'center',paddingHorizontal:10,borderWidth:1,borderColor:colors.line,borderRadius: radius.sm,backgroundColor:colors.surface},chipSelected:{backgroundColor:colors.accentSoft,borderColor:colors.accent},chipText:{fontSize:11,color:colors.muted,fontVariant:['tabular-nums']},chipTextSelected:{color:colors.ink,fontWeight:'800'},amountInput:{fontSize:32,fontWeight:'900',fontVariant:['tabular-nums'],color:colors.ink,borderBottomWidth:1,borderBottomColor:colors.line,paddingVertical:10,marginTop:12},fieldLabel:{fontSize:11,color:colors.muted,marginTop:12},noteInput:{height:40,borderBottomWidth:1,borderBottomColor:colors.line,color:colors.ink,marginTop:10},preview:{marginTop:12,borderTopWidth:1,borderTopColor:colors.line},infoRow:{minHeight:38,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderBottomColor:colors.line},infoLabel:{fontSize:11,color:colors.muted},infoValue:{fontSize:12,fontWeight:'800',fontVariant:['tabular-nums'],color:colors.ink},primaryButtonWrap:{width:'100%'},primaryButton:{backgroundColor:colors.accent,borderRadius: radius.sm,minHeight:44,justifyContent:'center',alignItems:'center',marginTop:14},primaryText:{color:colors.surface,fontSize:13,fontWeight:'800'},disabled:{opacity:.45},resultText:{fontSize:14,fontWeight:'700',fontVariant:['tabular-nums'],color:colors.ink,marginTop:14},noteText:{fontSize:11,color:colors.muted,marginTop:10},warningText:{color:colors.danger,fontWeight:'800'},error:{fontSize:11,color:colors.danger,marginTop:8} });
