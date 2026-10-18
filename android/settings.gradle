@@ -21,7 +21,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   }
 }
 
-rootProject.name = '严格记账'
+rootProject.name = '神罚'
 
 dependencyResolutionManagement {
   versionCatalogs {

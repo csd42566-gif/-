@@ -19,14 +19,14 @@
       "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FECEDE"
+        "backgroundColor": "#F3F6FB"
       }
     },
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FECEDE"
+      "backgroundColor": "#FFFFFF"
     }
   }
 }
