@@ -11,7 +11,7 @@ import { StatementImportSummary } from '../statement-import/statementImport';
 import { StatementImportSheet } from '../statement-import/StatementImportSheet';
 import { StatementProvider } from '../statement-import/statementTypes';
 import { createAccount } from '../accounts/accounts';
-import { batchBlockedReason, batchSelectionState, BatchReviewResult, isBatchablePending, selectedBatchSummary } from './batchReview';
+import { batchBlockedReason, batchSelectionState, BatchReviewResult, isBatchablePending, nextBatchSelection, resolvePendingAccountId, selectedBatchSummary } from './batchReview';
 
 type ReviewAction = 'accept' | 'dismiss';
 type FilterType = 'all' | TransactionType;
@@ -58,7 +58,7 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
     setEditing(item);
     setEditAmount(String(item.amount));
     setEditCategory(item.category ?? '');
-    setEditAccountId(item.accountId && state.accounts.some((account) => account.id === item.accountId) ? item.accountId : '');
+    setEditAccountId(resolvePendingAccountId(item.accountId, state.accounts));
     setEditDebtId(item.debtId ?? state.debts[0]?.id ?? '');
     setEditCounterparty(item.counterparty ?? '');
     setEditError('');
@@ -168,13 +168,17 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<BatchReviewResult | null>(null);
   const [batchError, setBatchError] = useState('');
-  const [batchDefaultAccountId, setBatchDefaultAccountId] = useState('');
+  const [batchDefaultAccountId, setBatchDefaultAccountId] = useState(() => resolvePendingAccountId(undefined, state.accounts));
   const [visibleCount, setVisibleCount] = useState(20);
   const missingAccountItems = useMemo(() => state.pendingTransactions.filter((item) => isPostable(item) && !item.accountId && !isRepayment(item)), [state.pendingTransactions]);
+  useEffect(() => {
+    if (!state.accounts.some((account) => account.id === batchDefaultAccountId)) {
+      setBatchDefaultAccountId(resolvePendingAccountId(undefined, state.accounts));
+    }
+  }, [state.accounts, batchDefaultAccountId]);
   const eligible = useMemo(() => state.pendingTransactions.filter((item) => isPostable(item) && isBatchablePending(item, !item.accountId && !isRepayment(item) ? batchDefaultAccountId : undefined)), [state.pendingTransactions, batchDefaultAccountId]);
   const eligibleIds = eligible.map((item) => item.id);
   const firstTenIds = eligibleIds.slice(0, 10);
-  const firstTenSelected = firstTenIds.length > 0 && firstTenIds.every((id) => selectedIds.has(id));
   const selectionState = batchSelectionState(eligibleIds, selectedIds);
   const summary = selectedBatchSummary(eligible, selectedIds);
   const visiblePending = state.pendingTransactions.slice(0, visibleCount);
@@ -195,21 +199,11 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
     });
   };
   const toggleFirstTen = () => {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      firstTenIds.forEach((id) => firstTenSelected ? next.delete(id) : next.add(id));
-      return next;
-    });
+    setSelectedIds((current) => nextBatchSelection(eligibleIds, current));
   };
   const selectAll = () => setSelectedIds(new Set(eligibleIds));
   const selectDefaultAccount = (accountId: string) => {
     setBatchDefaultAccountId(accountId);
-    const missingIds = missingAccountItems.map((item) => item.id);
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (accountId) missingIds.forEach((id) => next.add(id)); else missingIds.forEach((id) => next.delete(id));
-      return next;
-    });
   };
   const createBatchAccount = async () => {
     if (batchBusy) return;
@@ -293,7 +287,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
           </View>
         </View>
         {!isPostable(item) && <Text style={styles.noticeText}>{item.eventKind === 'repayment-failed' ? '还款未成功，仅作失败记录，不会扣减欠款。' : '这是待还提醒，不会直接记为支出。'}</Text>}
-        <View style={styles.pendingActions}><Text onPress={() => onReviewPending(item.id, 'dismiss')} style={styles.dismiss}>忽略</Text>{isPostable(item) && <><Text onPress={() => onBeginEdit(item)} style={styles.edit}>编辑</Text><Text onPress={() => onConfirm(item)} style={styles.pendingAccept}>确认</Text></>}</View>
+        <View style={styles.pendingActions}><Pressable accessibilityRole="button" onPress={() => onReviewPending(item.id, 'dismiss')} style={styles.pendingAction}><Text style={styles.dismiss}>忽略</Text></Pressable>{isPostable(item) && <><Pressable accessibilityRole="button" onPress={() => onBeginEdit(item)} style={styles.pendingAction}><Text style={styles.edit}>编辑</Text></Pressable><Pressable accessibilityRole="button" onPress={() => onConfirm(item)} style={styles.pendingAction}><Text style={styles.pendingAccept}>确认</Text></Pressable></>}</View>
       </PressableCard>;
     }) : <View style={styles.empty}><Text style={styles.emptyTitle}>没有待确认记录</Text><Text style={styles.caption}>短信、通知和账单接入后，识别结果会先在这里核对。</Text></View>}
     {remaining > 0 && <Pressable onPress={() => setVisibleCount((current) => current + 50)} style={styles.loadMore}><Text style={styles.loadMoreText}>还有 {remaining} 条 · 点击展开</Text></Pressable>}
@@ -409,7 +403,7 @@ function createStyles(colors: ThemeColors) {
   label: { fontSize: 12, color: colors.muted },
   total: { fontSize: 30, fontWeight: '900', color: colors.ink, marginTop: 4, fontVariant: ['tabular-nums'] },
   caption: { fontSize: 11, color: colors.muted, marginTop: 5 },
-  pending: { marginBottom: 8, borderColor: colors.line }, pendingHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }, pendingContent: { flex: 1, minWidth: 0 }, pendingTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm }, pendingMerchant: { flex: 1, fontSize: 14, fontWeight: '800', color: colors.ink }, pendingMeta: { fontSize: 12, color: colors.muted, marginTop: 3 }, pendingAmount: { fontSize: 14, fontWeight: '900', textAlign: 'right', fontVariant: ['tabular-nums'] }, pendingBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xxs, marginTop: spacing.xs }, pendingStatusBadge: { minHeight: 24, paddingHorizontal: spacing.xs, borderRadius: radius.pill, backgroundColor: colors.warningSoft, alignItems: 'center', justifyContent: 'center' }, pendingStatusText: { fontSize: 9, color: colors.warning, fontWeight: '800' }, pendingActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.lg, marginTop: spacing.sm }, pendingAccept: { fontSize: 12, color: colors.accent, fontWeight: '900' }, batchBar: { minHeight: 52, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }, batchSelectAll: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs }, batchSelectText: { fontSize: 11, color: colors.ink, fontWeight: '700' }, batchSelectAllText: { fontSize: 10, color: colors.accent, fontWeight: '800' }, batchSummaryBlock: { flex: 1, minWidth: 180, gap: 2 }, batchSummary: { fontSize: 10, color: colors.muted, fontVariant: ['tabular-nums'] }, batchButton: { minHeight: 40, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: colors.accent }, batchButtonText: { fontSize: 11, color: colors.surface, fontWeight: '800' }, batchCheckTarget: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }, checkbox: { width: 20, height: 20, borderWidth: 1, borderColor: colors.muted, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }, checkboxChecked: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, checkboxDisabled: { opacity: 0.35 }, checkboxGlyph: { fontSize: 13, color: colors.accent, fontWeight: '900' }, blockedReason: { fontSize: 10, color: colors.warning, marginTop: spacing.xxs }, batchResult: { marginVertical: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.successSoft }, batchResultError: { backgroundColor: colors.dangerSoft }, batchResultText: { fontSize: 11, color: colors.ink, fontWeight: '800', fontVariant: ['tabular-nums'] }, batchFailure: { fontSize: 10, color: colors.danger, marginTop: spacing.xxs },
+  pending: { marginBottom: 8, borderColor: colors.line }, pendingHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }, pendingContent: { flex: 1, minWidth: 0 }, pendingTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm }, pendingMerchant: { flex: 1, fontSize: 14, fontWeight: '800', color: colors.ink }, pendingMeta: { fontSize: 12, color: colors.muted, marginTop: 3 }, pendingAmount: { fontSize: 14, fontWeight: '900', textAlign: 'right', fontVariant: ['tabular-nums'] }, pendingBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xxs, marginTop: spacing.xs }, pendingStatusBadge: { minHeight: 24, paddingHorizontal: spacing.xs, borderRadius: radius.pill, backgroundColor: colors.warningSoft, alignItems: 'center', justifyContent: 'center' }, pendingStatusText: { fontSize: 9, color: colors.warning, fontWeight: '800' }, pendingActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.xs, marginTop: spacing.sm }, pendingAction: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.xxs }, pendingAccept: { fontSize: 12, color: colors.accent, fontWeight: '900' }, batchBar: { minHeight: 52, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.line }, batchSelectAll: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs }, batchSelectText: { fontSize: 11, color: colors.ink, fontWeight: '700' }, batchSelectAllText: { fontSize: 10, color: colors.accent, fontWeight: '800' }, batchSummaryBlock: { flex: 1, minWidth: 180, gap: 2 }, batchSummary: { fontSize: 10, color: colors.muted, fontVariant: ['tabular-nums'] }, batchButton: { minHeight: 40, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: colors.accent }, batchButtonText: { fontSize: 11, color: colors.surface, fontWeight: '800' }, batchCheckTarget: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }, checkbox: { width: 20, height: 20, borderWidth: 1, borderColor: colors.muted, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }, checkboxChecked: { borderColor: colors.accent, backgroundColor: colors.accentSoft }, checkboxDisabled: { opacity: 0.35 }, checkboxGlyph: { fontSize: 13, color: colors.accent, fontWeight: '900' }, blockedReason: { fontSize: 10, color: colors.warning, marginTop: spacing.xxs }, batchResult: { marginVertical: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.successSoft }, batchResultError: { backgroundColor: colors.dangerSoft }, batchResultText: { fontSize: 11, color: colors.ink, fontWeight: '800', fontVariant: ['tabular-nums'] }, batchFailure: { fontSize: 10, color: colors.danger, marginTop: spacing.xxs },
   pendingNotice: { borderColor: colors.line },
   noticeText: { fontSize: 11, color: colors.warning, marginTop: 8, lineHeight: 16 },
   transaction: { marginBottom: 8 },

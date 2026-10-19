@@ -1,6 +1,6 @@
 import { createInitialLedgerState } from '../../data/initialState';
-import { PendingTransaction } from '../../core/model/finance';
-import { batchSelectionState, isBatchablePending, reviewPendingBatch, selectedBatchSummary } from './batchReview';
+import { Account, PendingTransaction } from '../../core/model/finance';
+import { batchSelectionState, isBatchablePending, nextBatchSelection, resolvePendingAccountId, reviewPendingBatch, selectedBatchSummary } from './batchReview';
 
 const expense: PendingTransaction = { id: 'expense', type: 'expense', amount: 100, accountId: 'cash', category: '餐饮', occurredAt: '2026-10-18T08:00:00.000Z', source: 'import', confidence: 0.9, eventKind: 'payment' };
 const income: PendingTransaction = { id: 'income', type: 'income', amount: 300, accountId: 'cash', category: '工资', occurredAt: '2026-10-18T09:00:00.000Z', source: 'import', confidence: 0.9 };
@@ -21,6 +21,25 @@ test('全选三态按可批量总数计算', () => {
   expect(batchSelectionState(ids, new Set(ids))).toBe('all');
 });
 
+test('批量全选按前10笔、全选全部、清空三态循环', () => {
+  const ids = Array.from({ length: 12 }, (_, index) => `item-${index}`);
+  const first = nextBatchSelection(ids, new Set());
+  expect([...first]).toEqual(ids.slice(0, 10));
+
+  const all = nextBatchSelection(ids, new Set(['item-0']));
+  expect([...all]).toEqual(ids);
+
+  const cleared = nextBatchSelection(ids, new Set(ids));
+  expect([...cleared]).toEqual([]);
+});
+
+test('待核对记录优先沿用有效账户，否则使用首个账户', () => {
+  const accounts: Account[] = [{ id: 'cash', name: '现金', kind: 'cash', balance: 0 }, { id: 'bank', name: '银行卡', kind: 'bank', balance: 0 }];
+  expect(resolvePendingAccountId('bank', accounts)).toBe('bank');
+  expect(resolvePendingAccountId(undefined, accounts)).toBe('cash');
+  expect(resolvePendingAccountId('missing', accounts)).toBe('cash');
+  expect(resolvePendingAccountId(undefined, [])).toBe('');
+});
 test('已选汇总只统计选中项并区分收支', () => {
   expect(selectedBatchSummary([expense, income, repayment], new Set(['expense', 'income', 'repayment']))).toEqual({ count: 3, expense: 150, income: 300 });
 });

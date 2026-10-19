@@ -1,4 +1,4 @@
-import { LedgerState, PendingTransaction } from '../../core/model/finance';
+import { Account, LedgerState, PendingTransaction } from '../../core/model/finance';
 import { reviewDetectedTransaction } from './ledger';
 
 export type BatchSelectionState = 'none' | 'partial' | 'all';
@@ -15,6 +15,18 @@ export function batchSelectionState(eligibleIds: string[], selectedIds: Set<stri
   if (selectedCount === 0) return 'none';
   if (selectedCount === eligibleIds.length) return 'all';
   return 'partial';
+}
+
+export function nextBatchSelection(eligibleIds: string[], selectedIds: Set<string>, firstBatchSize = 10): Set<string> {
+  const state = batchSelectionState(eligibleIds, selectedIds);
+  if (state === 'all') return new Set();
+  if (state === 'partial') return new Set(eligibleIds);
+  return new Set(eligibleIds.slice(0, firstBatchSize));
+}
+
+export function resolvePendingAccountId(accountId: string | undefined, accounts: Account[]): string {
+  if (accountId && accounts.some((account) => account.id === accountId)) return accountId;
+  return accounts[0]?.id ?? '';
 }
 
 export function selectedBatchSummary(items: PendingTransaction[], selectedIds: Set<string>): { count: number; expense: number; income: number } {

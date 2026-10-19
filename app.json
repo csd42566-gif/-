@@ -2,7 +2,7 @@
   "expo": {
     "name": "神罚",
     "slug": "strict-ledger",
-    "version": "0.8.0",
+    "version": "0.8.1",
     "orientation": "portrait",
     "scheme": "strictledger",
     "userInterfaceStyle": "automatic",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.strictledger.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F3F6FB"
