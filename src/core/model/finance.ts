@@ -1,5 +1,5 @@
 export type TransactionType='income'|'expense'|'transfer';
-export type TransactionSource='manual'|'notification'|'bank'|'root'|'import';
+export type TransactionSource='manual'|'notification'|'autoaccounting'|'bank'|'root'|'import';
 export type DetectedEventKind='payment'|'repayment'|'proxy-repayment'|'repayment-reminder'|'repayment-failed'|'refund';
 export type DetectedEventStatus='success'|'reminder'|'failed';
 export type AccountKind='cash'|'bank'|'credit'|'wallet';
@@ -9,9 +9,11 @@ export type ReminderMode='punish'|'strict'|'normal';
 export type BudgetGroup='essential'|'flexible';
 export type RepaymentMode='minimum'|'full';
 export type MotionLevel='super'|'enhanced'|'standard';
+export type BillSource='notification'|'autoaccounting'|'both';
+export type PendingBillSource='notification'|'autoaccounting'|'import'|'manual';
 export interface Account{id:string;name:string;kind:AccountKind;balance:number}
 export interface Transaction{id:string;type:TransactionType;amount:number;accountId:string;toAccountId?:string;category?:string;budgetGroup?:BudgetGroup;note?:string;occurredAt:string;source:TransactionSource;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number;externalKey?:string}
-export interface PendingTransaction{ id:string;type:'income'|'expense';amount:number;accountId?:string;accountLabel?:string;category?:string;note?:string;occurredAt:string;source:Exclude<TransactionSource,'manual'>;confidence:number;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number }
+export interface PendingTransaction{ id:string;type:'income'|'expense';amount:number;accountId?:string;accountLabel?:string;category?:string;note?:string;occurredAt:string;source?:PendingBillSource;confidence:number;eventKind?:DetectedEventKind;eventStatus?:DetectedEventStatus;provider?:string;debtId?:string;counterparty?:string;principalAmount?:number;interestAmount?:number;installmentNumber?:number;installmentCount?:number;externalKey?:string }
 export interface InstallmentPeriod{number:number;dueDate:string;principalAmount:number;interestAmount:number;totalAmount:number}
 export interface InstallmentPlan{remainingPrincipal:number;totalPeriods:number;paidPeriods:number;annualRate?:number;repaymentType:'annuity'|'equal-principal'|'fixed-payment'|'manual';periods:InstallmentPeriod[]}
 export interface Debt{id:string;name:string;amount:number;dueDate:string;minimumPayment?:number;kind:'credit'|'bill'|'loan'|'personal';repaymentMode:RepaymentMode;installment?:InstallmentPlan}
@@ -53,6 +55,7 @@ export interface Settings{
   statusServiceEnabled:boolean;
   hapticsEnabled:boolean;
   motionLevel:MotionLevel;
+  billSource:BillSource;
   /** @deprecated Use motionLevel. */
   reducedMotion:boolean;
   accountDisplayOrder:string[];
@@ -93,6 +96,7 @@ export const defaultSettings: Settings = {
   statusServiceEnabled: false,
   hapticsEnabled: true,
   motionLevel: 'enhanced',
+  billSource: 'notification',
   reducedMotion: false,
   accountDisplayOrder: [],
   accountMapping: {},

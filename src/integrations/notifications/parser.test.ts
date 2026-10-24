@@ -1,3 +1,4 @@
+import { buildDedupeKey } from '../../core/import/dedupeKey';
 import { normalizeNotificationCandidate } from './parser';
 
 describe('notification candidate normalization', () => {
@@ -6,7 +7,7 @@ describe('notification candidate normalization', () => {
       id: 'evt-1', type: 'expense', amount: 38.5, source: 'notification',
       occurredAt: '2026-10-16T08:30:00.000Z', note: '支付宝交易通知', confidence: 0.8,
     })).toEqual({
-      id: 'evt-1', type: 'expense', amount: 38.5, source: 'notification', fingerprint: 'notification|expense|38.50|2026-10-16T08:30',
+      id: 'evt-1', type: 'expense', amount: 38.5, source: 'notification',
       occurredAt: '2026-10-16T08:30:00.000Z', note: '支付宝交易通知', confidence: 0.8,
     });
   });
@@ -17,11 +18,10 @@ describe('notification candidate normalization', () => {
     expect(normalizeNotificationCandidate({ id: 'x', type: 'expense', amount: 8, occurredAt: '2026-10-16T08:30:00Z', rawText: '付款通知内容' })).toBeNull();
   });
 
-  test('produces the same fingerprint for duplicate events in the same minute', () => {
-    const first = { id: 'one', type: 'expense', amount: 12, source: 'notification', occurredAt: '2026-10-16T08:30:02.000Z', note: '微信支付' };
-    const duplicate = { ...first, id: 'two', occurredAt: '2026-10-16T08:30:58.000Z' };
-    expect(normalizeNotificationCandidate(first)?.fingerprint).toBe('notification|expense|12.00|2026-10-16T08:30');
-    expect(normalizeNotificationCandidate(duplicate)?.fingerprint).toBe('notification|expense|12.00|2026-10-16T08:30');
+  test('normalizes duplicate notification events to the same unified dedupe key', () => {
+    const first = normalizeNotificationCandidate({ id: 'one', type: 'expense', amount: 12, source: 'notification', provider: '微信支付', occurredAt: '2026-10-16T08:30:02.000Z', note: '微信支付' });
+    const duplicate = normalizeNotificationCandidate({ id: 'two', type: 'expense', amount: 12.00, source: 'notification', provider: '微信', occurredAt: '2026-10-16T08:30:58.000Z', note: '微信支付' });
+    expect(first && buildDedupeKey(first)).toBe(duplicate && buildDedupeKey(duplicate));
   });
 
   test('preserves structured repayment metadata without retaining notification text', () => {

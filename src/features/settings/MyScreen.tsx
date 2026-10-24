@@ -32,6 +32,7 @@ const definitions: Partial<Record<SettingKey, { title: string; description: stri
   providerIconStyle: { title: '账单 App 图标', description: '品牌图标使用官方品牌字标，字符徽章使用来源首字。', choices: [{ label: '品牌图标', value: 'logo' }, { label: '字符徽章', value: 'badge' }] },
   repaymentReminders: { title: '还款到期提醒', description: '显示账本中记录的还款和账单到期提示。', choices: [{ label: '关闭', value: false }, { label: '开启', value: true }] },
   motionLevel: { title: '动效', description: '控制按钮回弹、弹层和页面过渡的动画强度。', choices: [{ label: '超级动效', value: 'super' }, { label: '强化动效', value: 'enhanced' }, { label: '一般动效', value: 'standard' }] },
+  billSource: { title: '账单来源', description: '决定接收哪些自动账单通道；两者都开会按统一去重键合并。', choices: [{ label: '仅通知（App 通知监听）', value: 'notification' }, { label: '仅自动记账（AutoAccounting 推送）', value: 'autoaccounting' }, { label: '两者都开（自动去重）', value: 'both' }] },
 };
 const integrations = {
   bank: { title: '银行与支付平台', body: '当前版本未连接任何银行或支付平台。不会读取账户凭证，也不会同步交易。接入服务与授权流程尚未配置。' },
@@ -205,6 +206,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
     if (key === 'riskCardMode') return ({ always: '始终显示', 'risk-only': '仅风险时显示', hidden: '首页隐藏' } as Record<string, string>)[String(value)];
     if (key === 'reminderMode') return ({ punish: '神罚', strict: '严厉', normal: '一般' } as Record<string, string>)[String(value)];
     if (key === 'motionLevel') return ({ super: '超级动效', enhanced: '强化动效', standard: '一般动效' } as Record<string, string>)[String(value)];
+    if (key === 'billSource') return ({ notification: '仅通知', autoaccounting: '仅自动记账', both: '两者都开' } as Record<string, string>)[String(value)];
     if (key === 'providerIconStyle') return ({ logo: '品牌图标', badge: '字符徽章' } as Record<string, string>)[String(value)];
     if (typeof value === 'boolean') return value ? '开启' : '关闭';
     return `${value}`;
@@ -279,7 +281,8 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
       <Pressable onPress={() => setPage('me')} accessibilityRole="button" accessibilityLabel="返回我的" style={({ pressed }) => [styles.back, pressed && styles.pressed]}><Ionicons name="arrow-back" size={19} color={colors.ink} /><Text style={styles.backText}>返回我的</Text></Pressable>
       <Text style={styles.title}>设置</Text>
       <Text style={styles.groupLabel}>偏好设置</Text><View style={styles.group}><View style={styles.statusServiceRow}><View style={styles.statusServiceCopy}><Text style={styles.rowLabel}>状态栏常驻</Text><Text style={styles.statusServiceDescription}>显示已存、目标还差和本月缺口。ColorOS 可能杀服务，需要手动允许后台运行和自启动。</Text>{!!statusServiceError && <Text style={styles.error}>{statusServiceError}</Text>}</View><Switch value={settings.statusServiceEnabled} disabled={statusServiceBusy} onValueChange={(value) => { void toggleStatusService(value); }} trackColor={{ false: colors.line, true: colors.accentSoft }} thumbColor={settings.statusServiceEnabled ? colors.accent : colors.muted} /></View><View style={styles.statusServiceRow}><View style={styles.statusServiceCopy}><Text style={styles.rowLabel}>触感反馈</Text><Text style={styles.statusServiceDescription}>记一笔确认和打卡成功时振动 8ms。</Text></View><Switch value={settings.hapticsEnabled} onValueChange={(value) => onUpdateSettings({ hapticsEnabled: value })} trackColor={{ false: colors.line, true: colors.accentSoft }} thumbColor={settings.hapticsEnabled ? colors.accent : colors.muted} /></View>{renderRow('repaymentReminders')}{renderRow('motionLevel')}{renderRow('providerIconStyle')}</View>
-      <Text style={styles.groupLabel}>连接与数据</Text><View style={styles.group}><Row label="支付通知识别" value={notificationAccess ? '已授权' : '未授权'} onPress={() => setIntegration('bank')} /><Row label="Root 状态检测" value={rootStatus === 'detected' ? '检测到标志' : rootStatus === 'not-detected' ? '未检测到' : '不可用'} onPress={() => setIntegration('root')} /><Row label="Magisk 控制面板" value="打开" onPress={() => setPage('module')} /><Row label="账号与云同步" value="本地模式" onPress={() => setIntegration('sync')} /></View>
+      <Text style={styles.groupLabel}>账单导入</Text><View style={styles.group}>{renderRow('billSource')}<Row label="支付通知识别" value={notificationAccess ? '已授权' : '未授权'} onPress={() => setIntegration('bank')} /></View>
+      <Text style={styles.groupLabel}>连接与数据</Text><View style={styles.group}><Row label="Root 状态检测" value={rootStatus === 'detected' ? '检测到标志' : rootStatus === 'not-detected' ? '未检测到' : '不可用'} onPress={() => setIntegration('root')} /><Row label="Magisk 控制面板" value="打开" onPress={() => setPage('module')} /><Row label="账号与云同步" value="本地模式" onPress={() => setIntegration('sync')} /></View>
       <Text style={styles.groupLabel}>数据管理</Text>
       <View style={styles.group}><Row label="导出数据备份" value="JSON" onPress={exportBackup} /><Row label="清空所有数据" value="危险操作" onPress={confirmClearAllData} /></View>
       <Text style={styles.groupLabel}>诊断日志 · {logVersion >= 0 ? entries.length : 0}</Text>

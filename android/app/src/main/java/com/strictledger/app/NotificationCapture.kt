@@ -5,7 +5,6 @@ import android.service.notification.StatusBarNotification
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.LinkedHashMap
 import java.util.Date
@@ -46,9 +45,8 @@ class NotificationCaptureService : NotificationListenerService() {
     val occurredAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:00'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(time)
     val amount = matches[0]
     val classification = classify(content)
-    val digest = MessageDigest.getInstance("SHA-256").digest("${sbn.packageName}|$type|$amount|$occurredAt".toByteArray())
-      .take(12).joinToString("") { "%02x".format(it) }
-    NotificationCapture.add(applicationContext, CapturedPayment("notification-$digest", type, amount, occurredAt, source, classification?.confidence ?: 0.75,
+    val eventId = "notification-${sbn.postTime}-${sbn.packageName}"
+    NotificationCapture.add(applicationContext, CapturedPayment(eventId, type, amount, occurredAt, source, classification?.confidence ?: 0.75,
       classification?.kind, classification?.status, classification?.counterparty))
   }
 

@@ -379,9 +379,9 @@ function pendingMerchant(item: PendingTransaction): string {
 function pendingSourceLabel(item: PendingTransaction): string {
   if (item.provider?.trim()) return item.provider.trim();
   if (item.source === 'notification') return '通知';
+  if (item.source === 'autoaccounting') return '自动记账';
   if (item.source === 'import') return '账单导入';
-  if (item.source === 'bank') return '银行';
-  if (item.source === 'root') return 'Root';
+  if (item.source === 'manual') return '手动';
   return '识别';
 }
 

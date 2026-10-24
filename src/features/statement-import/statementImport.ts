@@ -1,5 +1,6 @@
 import { Account, BudgetGroup, LedgerState, PendingTransaction, Transaction } from '../../core/model/finance';
 import { applyImportedTransactions } from '../ledger/ledger';
+import { findDuplicateBill } from '../../core/import/dedupeKey';
 import { parseAlipayStatement, StatementParseResult, StatementRow, StatementRowKind } from './alipayCsv';
 import { parseGenericStatement } from './genericCsv';
 import { isBankProvider, parseBankStatement } from './bankProviders';
@@ -128,15 +129,25 @@ function findAccount(accounts: Account[], accountMapping: Record<string, string>
   return accounts.find((account) => account.name.includes(tail) || account.id.includes(tail));
 }
 
-function summaryOf(rows: StatementRow[], state: LedgerState, providerKey: string, skippedClosed: number, skippedZero: number, skippedInvalid: number, duplicateRows: number): StatementImportSummary {
+function rowDedupeInput(row: StatementRow, providerLabel: string) {
+  return {
+    provider: providerLabel,
+    type: row.kind === 'income' || row.kind === 'refund' ? 'income' as const : row.kind === 'transfer' ? 'transfer' as const : 'expense' as const,
+    amount: row.amount,
+    occurredAt: row.occurredAt,
+  };
+}
+function summaryOf(rows: StatementRow[], state: LedgerState, providerKey: StatementProvider, skippedClosed: number, skippedZero: number, skippedInvalid: number, duplicateRows: number): StatementImportSummary {
   const sum = (kind: StatementRowKind) => roundCurrency(rows.filter((row) => row.kind === kind).reduce((total, row) => total + row.amount, 0));
   const count = (kind: StatementRowKind) => rows.filter((row) => row.kind === kind).length;
   const transactionIds = new Set(state.transactions.map((transaction) => transaction.id));
   const transactionKeys = new Set(state.transactions.map((transaction) => transaction.externalKey).filter((key): key is string => !!key));
   const pendingIds = new Set(state.pendingTransactions.map((pending) => pending.id));
+  const providerLabel = statementProviderLabels[providerKey];
   const existingCount = rows.filter((row) => transactionIds.has(transactionId(providerKey, row))
     || pendingIds.has(pendingId(providerKey, row))
-    || transactionKeys.has(externalKeyOf(providerKey, row))).length;
+    || transactionKeys.has(externalKeyOf(providerKey, row))
+    || !!findDuplicateBill(state, rowDedupeInput(row, providerLabel))).length;
   const importable = rows.filter((row) => row.kind !== 'transfer').length;
   return {
     totalRows: rows.length,
@@ -182,6 +193,7 @@ function importParsedStatement(state: LedgerState, parsed: StatementParseResult,
 
   for (const row of parsed.rows) {
     if (row.kind === 'transfer') continue;
+    if (findDuplicateBill(state, rowDedupeInput(row, providerLabel))) continue;
     const id = transactionId(provider, row);
     const pending = pendingId(provider, row);
     const externalKey = externalKeyOf(provider, row);
@@ -194,7 +206,7 @@ function importParsedStatement(state: LedgerState, parsed: StatementParseResult,
       pendingTransactions.push({
         id: pending, type: 'expense', amount: row.amount, accountId: account?.id, accountLabel, category: '还款', note,
         occurredAt: row.occurredAt, source: 'import', confidence: 1, eventKind: 'repayment', eventStatus: 'success',
-        provider: providerLabel, counterparty: row.counterparty === '/' ? undefined : row.counterparty,
+        provider: providerLabel, counterparty: row.counterparty === '/' ? undefined : row.counterparty, externalKey,
       });
       knownPendingIds.add(pending);
       continue;
@@ -214,6 +226,7 @@ function importParsedStatement(state: LedgerState, parsed: StatementParseResult,
         eventStatus: row.kind === 'refund' ? 'success' : undefined,
         provider: providerLabel,
         counterparty: row.counterparty === '/' ? undefined : row.counterparty,
+        externalKey,
       });
       knownPendingIds.add(pending);
       continue;

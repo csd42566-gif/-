@@ -29,6 +29,7 @@ describe('ledger state migration', () => {
         hapticsEnabled: true,
         providerIconStyle: 'logo',
         accountMapping: {},
+        billSource: 'notification',
       }),
     });
   });
@@ -174,4 +175,22 @@ describe('ledger state migration', () => {
     expect(normalized.pendingTransactions[1]).not.toHaveProperty('eventStatus');
     expect(normalized.pendingTransactions[1].provider).toHaveLength(80);
   });
+});
+test('normalizes billSource and preserves pending source and external key', () => {
+  const normalized = normalizeLedgerState({
+    accounts: [],
+    transactions: [],
+    debts: [],
+    goal: null,
+    pendingTransactions: [{
+      id: 'auto-1', type: 'expense', amount: 12.3, occurredAt: '2026-10-20T01:02:00.000Z',
+      source: 'autoaccounting', externalKey: 'ORDER-1', confidence: 1,
+    }],
+    settings: { billSource: 'both' },
+  });
+  const invalid = normalizeLedgerState({ accounts: [], transactions: [], debts: [], goal: null, settings: { billSource: 'unknown' } });
+
+  expect(normalized.settings.billSource).toBe('both');
+  expect(normalized.pendingTransactions[0]).toMatchObject({ source: 'autoaccounting', externalKey: 'ORDER-1' });
+  expect(invalid.settings.billSource).toBe('notification');
 });

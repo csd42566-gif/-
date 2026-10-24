@@ -1,5 +1,6 @@
 import { defaultSettings, LedgerState } from '../../core/model/finance';
 import { mergeNotificationCandidates } from './sync';
+import { logger } from '../../core/logging/logger';
 
 const state: LedgerState = {
   accounts: [],
@@ -42,4 +43,19 @@ test('ignores malformed native events without changing the ledger', () => {
   }]);
 
   expect(next).toBe(state);
+});
+test('drops notification events when billSource excludes notification and logs the rejection', () => {
+  logger.clear();
+  const restricted = { ...state, settings: { ...defaultSettings, billSource: 'autoaccounting' as const } };
+  const next = mergeNotificationCandidates(restricted, [{
+    id: 'notice-disabled',
+    type: 'expense',
+    amount: 15,
+    source: 'notification',
+    occurredAt: '2026-10-17T09:10:00.000Z',
+    provider: '支付宝',
+  }]);
+
+  expect(next).toBe(restricted);
+  expect(logger.getEntries()[0]).toMatchObject({ event: 'BILL_SOURCE_REJECTED' });
 });

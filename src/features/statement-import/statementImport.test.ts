@@ -1,4 +1,4 @@
-import { defaultSettings, LedgerState } from '../../core/model/finance';
+import { defaultSettings, LedgerState, PendingTransaction } from '../../core/model/finance';
 import { importAlipayStatement, importStatement, previewAlipayStatement } from './statementImport';
 
 const csv = [
@@ -144,4 +144,18 @@ test('账户映射优先于名称和卡尾号自动匹配', () => {
 
   expect(transaction).toMatchObject({ accountId: 'mapped-bank', amount: 7 });
   expect(result.state.accounts.find((account) => account.id === 'mapped-bank')?.balance).toBe(993);
+});
+test('同一笔通知已入待确认时，手动导入被统一去重键拦截', () => {
+  const state = createState();
+  const notification: PendingTransaction = {
+    id: 'notice-order-1', type: 'expense', amount: 7, occurredAt: '2026-10-17T23:11:05.000Z',
+    source: 'notification', provider: '支付宝', confidence: 0.9,
+  };
+  state.pendingTransactions = [notification];
+
+  const result = importAlipayStatement(state, csv);
+
+  expect(result.state.transactions.some((transaction) => transaction.id.includes('ORDER-1'))).toBe(false);
+  expect(result.state.pendingTransactions.some((pending) => pending.id === notification.id)).toBe(true);
+  expect(result.summary.existingCount).toBe(1);
 });

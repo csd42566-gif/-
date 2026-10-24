@@ -16,10 +16,7 @@ export interface NativeNotificationEvent {
   rawText?: unknown;
 }
 
-export type NormalizedNotificationCandidate = Omit<PendingTransaction, 'accountId'> & {
-  accountId?: string;
-  fingerprint: string;
-};
+export type NormalizedNotificationCandidate = PendingTransaction;
 
 export function normalizeNotificationCandidate(value: NativeNotificationEvent): NormalizedNotificationCandidate | null {
   if (!value || typeof value !== 'object' || value.rawText !== undefined) return null;
@@ -44,7 +41,6 @@ export function normalizeNotificationCandidate(value: NativeNotificationEvent): 
     source: 'notification',
     occurredAt,
     confidence,
-    fingerprint: 'notification|' + value.type + '|' + amount.toFixed(2) + '|' + occurredAt.slice(0, 16),
   };
   if (note) candidate.note = note;
   if (eventKind) candidate.eventKind = eventKind;

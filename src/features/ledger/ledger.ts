@@ -1,4 +1,6 @@
-import { LedgerState, PendingTransaction, Transaction } from '../../core/model/finance';
+import { BillSource, LedgerState, PendingBillSource, PendingTransaction, Transaction } from '../../core/model/finance';
+import { buildDedupeKey, pendingDedupeKey } from '../../core/import/dedupeKey';
+import { logger } from '../../core/logging/logger';
 
 export type DraftTransaction = Pick<Transaction, 'type' | 'amount' | 'accountId'>
   & Partial<Pick<Transaction, 'toAccountId' | 'category' | 'budgetGroup' | 'note' | 'eventKind' | 'eventStatus' | 'provider' | 'debtId' | 'counterparty' | 'principalAmount' | 'interestAmount' | 'installmentNumber' | 'installmentCount' | 'externalKey'>>;
@@ -44,12 +46,43 @@ export function applyImportedTransactions(state: LedgerState, imported: Transact
   return { ...state, accounts, transactions: [...accepted, ...state.transactions] };
 }
 
-export function queueDetectedTransaction(state: LedgerState, candidate: PendingTransaction): LedgerState {
-  const fingerprint = transactionFingerprint(candidate, false);
-  const alreadyKnown = state.pendingTransactions.some((item) => transactionFingerprint(item, false) === fingerprint)
-    || state.transactions.some((item) => item.source === candidate.source && transactionFingerprint(item, false) === fingerprint);
-  if (alreadyKnown) return state;
+export function isBillSourceEnabled(billSource: BillSource, source: PendingBillSource | undefined): boolean {
+  if (source === 'notification') return billSource === 'notification' || billSource === 'both';
+  if (source === 'autoaccounting') return billSource === 'autoaccounting' || billSource === 'both';
+  return true;
+}
+
+export function addPendingWithDedupe(state: LedgerState, candidate: PendingTransaction): LedgerState {
+  if (!isBillSourceEnabled(state.settings.billSource, candidate.source)) {
+    logger.log('info', 'BILL_SOURCE_REJECTED', `source=${candidate.source ?? 'unknown'} setting=${state.settings.billSource}`);
+    return state;
+  }
+
+  const key = buildDedupeKey({ provider: candidate.provider, type: candidate.type, amount: candidate.amount, occurredAt: candidate.occurredAt });
+  const existingTransaction = state.transactions.find((item) => item.source !== 'manual' && buildDedupeKey({ provider: item.provider, type: item.type, amount: item.amount, occurredAt: item.occurredAt }) === key);
+  if (existingTransaction) {
+    logger.log('info', 'DEDUPE_DUPLICATE_SUPPRESSED', `key=${key} target=transaction`);
+    return state;
+  }
+
+  const pendingIndex = state.pendingTransactions.findIndex((item) => pendingDedupeKey(item) === key);
+  if (pendingIndex >= 0) {
+    const existing = state.pendingTransactions[pendingIndex];
+    if (pendingCompleteness(candidate) > pendingCompleteness(existing)) {
+      const pendingTransactions = [...state.pendingTransactions];
+      pendingTransactions[pendingIndex] = candidate;
+      logger.log('info', 'DEDUPE_BETTER_RECORD_REPLACED', `key=${key} source=${candidate.source ?? 'unknown'}`);
+      return { ...state, pendingTransactions };
+    }
+    logger.log('info', 'DEDUPE_DUPLICATE_SUPPRESSED', `key=${key} target=pending`);
+    return state;
+  }
+
   return { ...state, pendingTransactions: [candidate, ...state.pendingTransactions] };
+}
+
+export function queueDetectedTransaction(state: LedgerState, candidate: PendingTransaction): LedgerState {
+  return addPendingWithDedupe(state, candidate);
 }
 
 export function reviewDetectedTransaction(
@@ -86,7 +119,7 @@ export function reviewDetectedTransaction(
     installmentNumber: accepted.installmentNumber,
     installmentCount: accepted.installmentCount,
   });
-  const transaction = { ...next.transactions[0], occurredAt: accepted.occurredAt, source: accepted.source };
+  const transaction = { ...next.transactions[0], occurredAt: accepted.occurredAt, source: accepted.source ?? 'import' };
   const debts = debt ? state.debts.map((item) => {
     if (item.id !== debt.id) return item;
     const remainingPrincipal = Math.max(0, item.amount - principalAmount);
@@ -108,8 +141,9 @@ export function reviewDetectedTransaction(
   return { ...next, debts, transactions: [transaction, ...state.transactions], pendingTransactions: state.pendingTransactions.filter((item) => item.id !== id) };
 }
 
-function transactionFingerprint(transaction: Pick<Transaction, 'type' | 'amount' | 'occurredAt'> & { accountId?: string; note?: string }, includeAccount = true): string {
-  const occurred = new Date(transaction.occurredAt);
-  const minute = Number.isNaN(occurred.getTime()) ? transaction.occurredAt.slice(0, 16) : occurred.toISOString().slice(0, 16);
-  return [transaction.type, transaction.amount.toFixed(2), minute, transaction.note ?? '', includeAccount ? transaction.accountId ?? '' : ''].join('|');
+function pendingCompleteness(item: PendingTransaction): number {
+  const textFields = [item.accountId, item.accountLabel, item.category, item.note, item.eventKind, item.eventStatus, item.provider, item.debtId, item.counterparty, item.externalKey];
+  const numberFields = [item.principalAmount, item.interestAmount, item.installmentNumber, item.installmentCount];
+  return textFields.filter((value) => typeof value === 'string' && value.length > 0).length
+    + numberFields.filter((value) => typeof value === 'number' && Number.isFinite(value)).length;
 }

@@ -1,4 +1,4 @@
-import { Account, Allowance, AttendanceRecord, Debt, defaultSettings, EssentialItem, Goal, LedgerState, PendingTransaction, Settings, Transaction, WorkProfile } from '../core/model/finance';
+import { Account, Allowance, AttendanceRecord, BillSource, Debt, defaultSettings, EssentialItem, Goal, LedgerState, PendingBillSource, PendingTransaction, Settings, Transaction, WorkProfile } from '../core/model/finance';
 import { normalizeDateKey } from '../core/time/dateKey';
 
 export function normalizeLedgerState(value: unknown): LedgerState {
@@ -15,6 +15,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
   const hapticsEnabled = rawSettings.hapticsEnabled !== false;
   const motionLevel = normalizeMotionLevel(rawSettings);
   const reminderMode = normalizeReminderMode(rawSettings);
+  const billSource = normalizeBillSource(rawSettings.billSource);
   const essentialItems = normalizeEssentialItems(rawSettings.essentialItems, rawSettings.essentialMonthlyExpenses);
   const essentialMonthlyExpenses = essentialItemsTotal(essentialItems);
   const work = normalizeWorkProfile(rawSettings.work);
@@ -25,7 +26,7 @@ export function normalizeLedgerState(value: unknown): LedgerState {
     debts: normalizeDebts(state.debts),
     goal: normalizeGoal(state.goal, Array.isArray(state.accounts) ? state.accounts : [], Array.isArray(state.transactions) ? state.transactions : []),
     attendance: normalizeAttendance(state.attendance),
-    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, hapticsEnabled, motionLevel, reminderMode, essentialItems, essentialMonthlyExpenses, providerIconStyle },
+    settings: { ...defaultSettings, ...rawSettings, work, accountDisplayOrder, accountMapping, hapticsEnabled, motionLevel, reminderMode, billSource, essentialItems, essentialMonthlyExpenses, providerIconStyle },
   };
 }
 
@@ -38,15 +39,24 @@ function normalizePendingTransaction(value: unknown): PendingTransaction {
   const debtId = boundedText(item.debtId, 100);
   const counterparty = boundedText(item.counterparty, 80);
   const accountLabel = boundedText(item.accountLabel, 120);
+  const externalKey = boundedText(item.externalKey, 200);
+  const source = enumValue<PendingBillSource>(item.source, ['notification', 'autoaccounting', 'import', 'manual'] as const);
   if (eventKind) item.eventKind = eventKind; else delete item.eventKind;
   if (eventStatus) item.eventStatus = eventStatus; else delete item.eventStatus;
   if (provider) item.provider = provider; else delete item.provider;
   if (debtId) item.debtId = debtId; else delete item.debtId;
   if (counterparty) item.counterparty = counterparty; else delete item.counterparty;
   if (accountLabel) item.accountLabel = accountLabel; else delete item.accountLabel;
+  if (externalKey) item.externalKey = externalKey; else delete item.externalKey;
+  if (source) item.source = source; else delete item.source;
   return item;
 }
 
+function normalizeBillSource(value: unknown): BillSource {
+  return value === 'notification' || value === 'autoaccounting' || value === 'both'
+    ? value
+    : defaultSettings.billSource;
+}
 function enumValue<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
   return typeof value === 'string' && allowed.includes(value as T) ? value as T : undefined;
 }
