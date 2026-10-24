@@ -1,5 +1,20 @@
-import { AttendanceRecord, defaultWorkProfile, WorkProfile } from '../model/finance';
+import { AttendanceRecord, WorkProfile } from '../model/finance';
 import { calculateEarnings } from './attendance';
+
+const testWorkProfile: WorkProfile = {
+  monthlyIncome: 5000,
+  probationIncome: 5000,
+  probationStartDate: '2026-10-10',
+  regularStartDate: '2026-11-10',
+  restDaysPerMonth: 4,
+  workHoursPerDay: 8,
+  payday: 15,
+  cycleStartDay: 10,
+  fullAttendanceBonus: 200,
+  allowances: [
+    { name: '餐补', amount: 500, mode: 'fixed', phase: 'regular' },
+  ],
+};
 
 function dateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -24,7 +39,7 @@ function cycleAttendance(year: number, monthIndex: number, cycleStartDay: number
 }
 
 test('周期1为试用期：31天、应出勤27天、日薪185.19、满勤5000', () => {
-  const result = calculateEarnings(defaultWorkProfile, cycleAttendance(2026, 9, 10, 31, 27, 4), new Date(2026, 9, 18, 12));
+  const result = calculateEarnings(testWorkProfile, cycleAttendance(2026, 9, 10, 31, 27, 4), new Date(2026, 9, 18, 12));
 
   expect(result).toMatchObject({
     cycleStart: '2026-10-10', cycleEnd: '2026-11-09', cycleDays: 31,
@@ -36,7 +51,7 @@ test('周期1为试用期：31天、应出勤27天、日薪185.19、满勤5000',
 });
 
 test('周期2为转正：30天、应出勤26天、日薪192.31、满勤到手5700', () => {
-  const result = calculateEarnings(defaultWorkProfile, cycleAttendance(2026, 10, 10, 30, 26, 4), new Date(2026, 10, 18, 12));
+  const result = calculateEarnings(testWorkProfile, cycleAttendance(2026, 10, 10, 30, 26, 4), new Date(2026, 10, 18, 12));
 
   expect(result).toMatchObject({
     cycleStart: '2026-11-10', cycleEnd: '2026-12-09', cycleDays: 30,
@@ -48,7 +63,7 @@ test('周期2为转正：30天、应出勤26天、日薪192.31、满勤到手570
 });
 
 test('周期3为转正：31天、应出勤27天、日薪185.19、满勤到手5700', () => {
-  const result = calculateEarnings(defaultWorkProfile, cycleAttendance(2026, 11, 10, 31, 27, 4), new Date(2026, 11, 18, 12));
+  const result = calculateEarnings(testWorkProfile, cycleAttendance(2026, 11, 10, 31, 27, 4), new Date(2026, 11, 18, 12));
 
   expect(result).toMatchObject({
     cycleStart: '2026-12-10', cycleEnd: '2027-01-09', cycleDays: 31,
@@ -66,14 +81,14 @@ test('18:00 上班、次日 02:00 下班按上班当天归属并算一天', () =
     clockOut: new Date(2026, 9, 19, 2, 0, 0).toISOString(),
     status: 'worked',
   };
-  const result = calculateEarnings(defaultWorkProfile, [record], new Date(2026, 9, 18, 12));
+  const result = calculateEarnings(testWorkProfile, [record], new Date(2026, 9, 18, 12));
 
   expect(result.workedDays).toBe(1);
   expect(result.cycleEarned).toBe(185.19);
 });
 
 test('只有上班卡没有下班卡不算钱', () => {
-  const result = calculateEarnings(defaultWorkProfile, [{ date: '2026-10-18', clockIn: new Date(2026, 9, 18, 18).toISOString(), status: 'worked' }], new Date(2026, 9, 18, 12));
+  const result = calculateEarnings(testWorkProfile, [{ date: '2026-10-18', clockIn: new Date(2026, 9, 18, 18).toISOString(), status: 'worked' }], new Date(2026, 9, 18, 12));
 
   expect(result.workedDays).toBe(0);
   expect(result.cycleEarned).toBe(0);
@@ -81,7 +96,7 @@ test('只有上班卡没有下班卡不算钱', () => {
 
 test('休息5天不达成全勤，也不发全勤奖', () => {
   const attendance = cycleAttendance(2026, 10, 10, 30, 21, 5);
-  const result = calculateEarnings(defaultWorkProfile, attendance, new Date(2026, 10, 18, 12));
+  const result = calculateEarnings(testWorkProfile, attendance, new Date(2026, 10, 18, 12));
 
   expect(result.restDays).toBe(5);
   expect(result.fullAttendance).toBe(false);
@@ -89,7 +104,7 @@ test('休息5天不达成全勤，也不发全勤奖', () => {
 });
 
 test('休息日标记为 worked 仍算一天日薪', () => {
-  const result = calculateEarnings(defaultWorkProfile, [{
+  const result = calculateEarnings(testWorkProfile, [{
     date: '2026-10-18',
     clockIn: new Date(2026, 9, 18, 18).toISOString(),
     clockOut: new Date(2026, 9, 19, 2).toISOString(),
@@ -102,7 +117,7 @@ test('休息日标记为 worked 仍算一天日薪', () => {
 
 test('试用期不发放 regular 补贴和全勤奖', () => {
   const profile: WorkProfile = {
-    ...defaultWorkProfile,
+    ...testWorkProfile,
     allowances: [
       { name: '转正补贴', amount: 500, mode: 'fixed', phase: 'regular' },
       { name: '试用补贴', amount: 100, mode: 'fixed', phase: 'probation' },
@@ -120,7 +135,7 @@ test('试用期不发放 regular 补贴和全勤奖', () => {
 
 test('per-day 与 fixed 补贴都只按生效阶段计算', () => {
   const profile: WorkProfile = {
-    ...defaultWorkProfile,
+    ...testWorkProfile,
     monthlyIncome: 5000,
     fullAttendanceBonus: 200,
     allowances: [

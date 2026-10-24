@@ -65,30 +65,21 @@ export interface Settings{
 export interface LedgerState{accounts:Account[];transactions:Transaction[];pendingTransactions:PendingTransaction[];debts:Debt[];goal:Goal|null;settings:Settings;attendance?:AttendanceRecord[]}
 
 export const defaultWorkProfile: WorkProfile = {
-  monthlyIncome: 5000,
-  probationIncome: 5000,
-  probationStartDate: '2026-10-10',
-  regularStartDate: '2026-11-10',
+  monthlyIncome: 0,
   restDaysPerMonth: 4,
   workHoursPerDay: 8,
-  payday: 15,
-  cycleStartDay: 10,
-  fullAttendanceBonus: 200,
-  allowances: [
-    { name: '餐补', amount: 500, mode: 'fixed', phase: 'regular' },
-  ],
+  payday: 1,
+  cycleStartDay: 1,
+  allowances: [],
 };
 
 export const defaultSettings: Settings = {
   riskCardMode: 'risk-only',
   reminderMode: 'punish',
   providerIconStyle: 'logo',
-  monthlyIncome: 15000,
+  monthlyIncome: 0,
   essentialMonthlyExpenses: 0,
-  essentialItems: [
-    { id: 'food', name: '吃', amount: 0 },
-    { id: 'housing', name: '住', amount: 0 },
-  ],
+  essentialItems: [],
   workDaysPerMonth: 22,
   workHoursPerDay: 8,
   strictMode: false,

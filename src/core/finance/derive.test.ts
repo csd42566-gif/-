@@ -1,5 +1,18 @@
-import { defaultSettings, LedgerState } from '../model/finance';
+import { defaultSettings, LedgerState, WorkProfile } from '../model/finance';
 import { deriveFinancials } from './derive';
+
+const testWorkProfile: WorkProfile = {
+  monthlyIncome: 5000,
+  probationIncome: 5000,
+  probationStartDate: '2026-10-10',
+  regularStartDate: '2026-11-10',
+  restDaysPerMonth: 4,
+  workHoursPerDay: 8,
+  payday: 15,
+  cycleStartDay: 10,
+  fullAttendanceBonus: 200,
+  allowances: [],
+};
 
 const state: LedgerState = {
   accounts: [
@@ -21,7 +34,7 @@ const state: LedgerState = {
     { id: 'next', name: '下月账单', amount: 300, dueDate: '2026-11-05', kind: 'bill', repaymentMode: 'minimum' },
   ],
   goal: { id: 'goal', name: '应急金', targetAmount: 1000, startBalance: -1750, startBalanceAt: '2026-01-01T00:00:00.000+08:00', deadline: '2026-10-25' },
-  settings: { ...defaultSettings, monthlyIncome: 5000, essentialMonthlyExpenses: 500, workDaysPerMonth: 20, workHoursPerDay: 8 },
+  settings: { ...defaultSettings, monthlyIncome: 5000, essentialMonthlyExpenses: 500, workDaysPerMonth: 20, workHoursPerDay: 8, work: testWorkProfile },
 };
 
 test('统一派生现金流、目标和负债口径', () => {
@@ -72,7 +85,7 @@ test('预算收入、工作天数和工时只读取 settings.work', () => {
       monthlyIncome: 15000,
       workDaysPerMonth: 2,
       workHoursPerDay: 1,
-      work: { ...defaultSettings.work, monthlyIncome: 5000, workHoursPerDay: 8 },
+      work: { ...testWorkProfile, monthlyIncome: 5000, workHoursPerDay: 8 },
     },
   };
 
@@ -94,7 +107,7 @@ test('试用期预算使用 probationIncome，转正周期使用 monthlyIncome',
       ...defaultSettings,
       essentialMonthlyExpenses: 0,
       work: {
-        ...defaultSettings.work,
+        ...testWorkProfile,
         probationIncome: 4000,
         monthlyIncome: 6000,
         regularStartDate: '2026-11-10',

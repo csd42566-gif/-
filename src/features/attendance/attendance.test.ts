@@ -1,6 +1,21 @@
 import { createInitialLedgerState } from '../../data/initialState';
+import { WorkProfile } from '../../core/model/finance';
 import { calculateEarnings } from '../../core/work/attendance';
 import { clockInAttendance, clockOutAttendance, findPendingAttendanceRecord, markAttendanceRest, undoAttendanceRest } from './attendance';
+
+const testWorkProfile: WorkProfile = {
+  monthlyIncome: 5000,
+  restDaysPerMonth: 4,
+  workHoursPerDay: 8,
+  payday: 15,
+  cycleStartDay: 10,
+  allowances: [],
+};
+
+function stateWithSalary() {
+  const state = createInitialLedgerState();
+  return { ...state, settings: { ...state.settings, work: testWorkProfile } };
+}
 
 test('同一天重复上班打卡只更新原记录', () => {
   const firstTime = new Date(2026, 9, 18, 9, 2);
@@ -18,7 +33,7 @@ test('同一天重复上班打卡只更新原记录', () => {
 });
 
 test('标记休息不计钱，撤销后可重新打卡并恢复日薪', () => {
-  const state = createInitialLedgerState();
+  const state = stateWithSalary();
   const workTime = new Date(2026, 9, 18, 9, 0);
   const restState = markAttendanceRest(state, workTime);
   const restEarnings = calculateEarnings(restState.settings.work, restState.attendance ?? [], workTime);
@@ -37,7 +52,7 @@ test('标记休息不计钱，撤销后可重新打卡并恢复日薪', () => {
 test('22:00 上班后次日 02:00 下班仍归属前一天且只算一天', () => {
   const clockInTime = new Date(2026, 9, 18, 22, 0);
   const clockOutTime = new Date(2026, 9, 19, 2, 0);
-  const clockedIn = clockInAttendance(createInitialLedgerState(), clockInTime);
+  const clockedIn = clockInAttendance(stateWithSalary(), clockInTime);
   const completed = clockOutAttendance(clockedIn, clockOutTime);
 
   expect(completed.attendance).toHaveLength(1);

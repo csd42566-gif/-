@@ -1,9 +1,21 @@
 import { createInitialLedgerState } from '../../data/initialState';
+import { WorkProfile } from '../../core/model/finance';
 import { buildStatusNotificationPayload, formatStatusNotificationText } from './statusService';
 
+const testWorkProfile: WorkProfile = {
+  monthlyIncome: 5000,
+  restDaysPerMonth: 4,
+  workHoursPerDay: 8,
+  payday: 15,
+  cycleStartDay: 10,
+  allowances: [],
+};
+
 test('从派生财务数据生成三列通知载荷', () => {
+  const base = createInitialLedgerState();
   const state = {
-    ...createInitialLedgerState(),
+    ...base,
+    settings: { ...base.settings, work: testWorkProfile },
     accounts: [{ id: 'bank', name: '银行卡', kind: 'bank' as const, balance: 1200 }],
     goal: {
       id: 'goal',

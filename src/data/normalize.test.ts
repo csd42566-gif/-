@@ -48,7 +48,7 @@ describe('ledger state migration', () => {
     });
 
     expect(normalized.settings.work.regularStartDate).toBe('2026-11-10');
-    expect(normalized.settings.work.probationStartDate).toBe('2026-10-10');
+    expect(normalized.settings.work.probationStartDate).toBeUndefined();
     expect(normalized.settings.work).not.toHaveProperty('probationEndDate');
   });
 
