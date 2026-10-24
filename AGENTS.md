@@ -21,14 +21,18 @@
 
 留痕走全局 §8 的 codelog 机制，**本项目不再另写日志文件**。理由：会话日志加磁盘指纹是**不依赖模型配合**的事实源，比"让模型记得写 markdown"可靠——模型忘了写就是丢了，而会话日志忘不掉。
 
-- 每轮改动后跑 `D:\tools\codelog\codelog.cmd check --project .`；收尾补一条 `summary`（task / why / verify / rollback）。
+- 每轮改动后跑 `D:\tools\codelog\codelog.cmd check --project .`；收尾补一条 `summary`（task / why / verify / rollback），**`--session` 现在会自动填**（读 `CODEX_SESSION_ID` / `DSH_SESSION_ID` 等），都取不到才落 `unknown`——挂不回任何 change 时只能按时间就近猜（历史上 61 条 summary 的 session 全是空的）。
 - `summary` 里的 why / verify / rollback 只有模型能提供，会话日志里没有。这是唯一必须自觉填的部分，不许省、不许写空话——「为什么」要写能复用的判断，比如"X 方案会让 core 依赖 React，破坏分层"。
 - `logs/` 已在 `.gitignore` 里，不进版本库。换机器或清目录后用 `sync` 可从 `~/.codex/sessions/` 重建，历史不丢。
 - 提交由我点头后才执行（全局 §2 的边界，本项目不放宽）。完成一个可独立验证的功能点后，主动给一条提交建议：改了什么、为什么、验证结果。不攒到最后一次性提交，也不每改一个文件提一次。提交信息中文，一次一件事。
 
 ### 2.1 给外部读取方的约定
 
-`logs/codex-changes.jsonl` 一行一条 JSON，三种 `kind`：`change`（工具调用 + 文件动作）、`snapshot`（git 快照）、`summary`（意图）。字段语义以 `D:\tools\codelog\README.md` 为准，**不要在本项目里另造格式或另写一份日志**——两套留痕就是屎山的起点。
+`logs/codex-changes.jsonl` 一行一条 JSON，**四种** `kind`：`change`（工具调用 + 文件动作）、`snapshot`（git 快照）、`summary`（意图）、`file_change`（磁盘指纹对账，由 `scan` 写）。
+
+`D:\tools\codelog\README.md` 已补齐四种的字段说明（第 3 轮改造时补的），但字段语义以 `..\追溯机制\docs\agent-traceability.md` 为准（2026-10-24 已搬出本仓库，与本仓库同级）——那里写了可靠性排序、已知失真与复算方法。
+
+**不要在本项目里另造格式或另写一份日志**——两套留痕就是屎山的起点。
 
 ## 3. 验证口径
 
