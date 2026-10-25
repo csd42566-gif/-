@@ -1,4 +1,4 @@
-import React, { useState , useMemo } from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Debt, LedgerState, RepaymentMode } from '../../core/model/finance';
 import { daysUntil } from '../../core/finance/calculations';
@@ -12,9 +12,10 @@ import { SectionTitle } from '../../ui/components/SectionTitle';
 import { RepaymentProvider } from '../repayment-import/parsers';
 import { InstallmentDraft } from '../repayment-import/installments';
 import { RepaymentImportOutcome, RepaymentImportSheet } from '../repayment-import/RepaymentImportSheet';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 export function DebtsScreen({ state, onImportRepayment, onImportInstallment, onUpdateRepaymentMode }: { state: LedgerState; onImportRepayment: (provider: RepaymentProvider, text: string) => Promise<RepaymentImportOutcome>; onImportInstallment: (provider: RepaymentProvider, draft: InstallmentDraft) => Promise<RepaymentImportOutcome>; onUpdateRepaymentMode: (debtId: string, mode: RepaymentMode) => Promise<void> }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const [selected, setSelected] = useState<Debt | null>(null);
   const [importVisible, setImportVisible] = useState(false);
   const now = new Date();
@@ -123,7 +124,7 @@ export function DebtsScreen({ state, onImportRepayment, onImportInstallment, onU
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   return <View style={styles.summaryRow}><Text style={styles.summaryLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>;
 }
 
@@ -180,7 +181,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.dangerSoft, colors.ink, colors.line, colors.muted, colors.overlay, colors.success, colors.surface, colors.warning]);
-}

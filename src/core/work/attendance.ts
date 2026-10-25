@@ -1,4 +1,6 @@
 import { Allowance, AttendanceRecord, WorkProfile } from '../model/finance';
+import { formatLocalDateKey } from '../time/dateKey';
+import { roundMoney } from '../finance/money';
 
 export interface EarningsResult {
   cycleStart: string;
@@ -62,13 +64,13 @@ export function calculateEarnings(profile: WorkProfile, attendance: AttendanceRe
 
 function resolveCycle(cycleStartDay: number, now: Date): { startKey: string; endKey: string; days: number; end: Date } {
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), cycleStartDay);
-  const start = localDateKey(now) >= localDateKey(currentMonthStart)
+  const start = formatLocalDateKey(now) >= formatLocalDateKey(currentMonthStart)
     ? currentMonthStart
     : new Date(now.getFullYear(), now.getMonth() - 1, cycleStartDay);
   const end = new Date(start.getFullYear(), start.getMonth() + 1, cycleStartDay - 1);
   return {
-    startKey: localDateKey(start),
-    endKey: localDateKey(end),
+    startKey: formatLocalDateKey(start),
+    endKey: formatLocalDateKey(end),
     days: calendarDayNumber(end) - calendarDayNumber(start) + 1,
     end,
   };
@@ -86,7 +88,7 @@ function cycleRecords(attendance: AttendanceRecord[], startKey: string, endKey: 
 function attributionDateOf(record: AttendanceRecord): string {
   if (record.clockIn) {
     const clockIn = new Date(record.clockIn);
-    if (!Number.isNaN(clockIn.getTime())) return localDateKey(clockIn);
+    if (!Number.isNaN(clockIn.getTime())) return formatLocalDateKey(clockIn);
   }
   return record.date;
 }
@@ -101,18 +103,10 @@ function calculateAllowances(allowances: Allowance[], phase: 'probation' | 'regu
 
 function resolvePayday(cycleEnd: Date, payday: number): string {
   let date = new Date(cycleEnd.getFullYear(), cycleEnd.getMonth(), payday);
-  if (localDateKey(date) <= localDateKey(cycleEnd)) date = new Date(cycleEnd.getFullYear(), cycleEnd.getMonth() + 1, payday);
-  return localDateKey(date);
-}
-
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  if (formatLocalDateKey(date) <= formatLocalDateKey(cycleEnd)) date = new Date(cycleEnd.getFullYear(), cycleEnd.getMonth() + 1, payday);
+  return formatLocalDateKey(date);
 }
 
 function calendarDayNumber(date: Date): number {
   return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
 }

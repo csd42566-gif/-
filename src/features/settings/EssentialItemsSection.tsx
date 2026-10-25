@@ -1,9 +1,10 @@
 import { ThemedModal } from '../../ui/components/ThemedModal';
-import React, { useState , useMemo } from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { EssentialItem, MotionLevel } from '../../core/model/finance';
 import { radius, spacing, ThemeColors } from '../../ui/theme';
 import { useTheme } from '../../ui/ThemeContext';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 type EditingItem = EssentialItem & { isNew: boolean };
 
@@ -12,7 +13,7 @@ export function EssentialItemsSection({ items, motionLevel, onChange }: {
   motionLevel: MotionLevel;
   onChange: (items: EssentialItem[]) => void;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [editing, setEditing] = useState<EditingItem | null>(null);
   const [name, setName] = useState('');
@@ -92,7 +93,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.surface]);
-}

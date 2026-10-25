@@ -1,10 +1,9 @@
 import { AttendanceRecord, LedgerState } from '../../core/model/finance';
+import { formatLocalDateKey } from '../../core/time/dateKey';
 
 export const ATTENDANCE_CLOCK_IN_REQUIRED = 'attendance-clock-in-required';
 
-export function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
+export const localDateKey = formatLocalDateKey;
 
 export function clockInAttendance(state: LedgerState, now: Date): LedgerState {
   const date = localDateKey(now);
@@ -69,8 +68,4 @@ function upsertAttendance(attendance: AttendanceRecord[], record: AttendanceReco
   const index = attendance.findIndex((item) => item.date === record.date);
   if (index < 0) return [...attendance, record];
   return attendance.map((item, itemIndex) => itemIndex === index ? record : item);
-}
-
-function previousLocalDateKey(date: Date): string {
-  return localDateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1, 12));
 }

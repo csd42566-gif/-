@@ -1,12 +1,14 @@
+import { providerLabels } from '../../core/model/providers';
+
 export type StatementProvider = 'alipay' | 'wechat' | 'cmb' | 'icbc' | 'ccb' | 'boc' | 'citic' | 'other';
 
 export const statementProviderLabels: Record<StatementProvider, string> = {
-  alipay: '支付宝',
-  wechat: '微信',
-  cmb: '招商银行',
-  icbc: '工商银行',
-  ccb: '建设银行',
-  boc: '中国银行',
-  citic: '中信银行',
+  alipay: providerLabels.alipay,
+  wechat: providerLabels.wechat,
+  cmb: providerLabels.cmb,
+  icbc: providerLabels.icbc,
+  ccb: providerLabels.ccb,
+  boc: providerLabels.boc,
+  citic: providerLabels.citic,
   other: '其他 App',
 };

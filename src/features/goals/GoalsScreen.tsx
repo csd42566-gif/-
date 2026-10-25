@@ -1,4 +1,4 @@
-import React, { useEffect, useState , useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LedgerState } from '../../core/model/finance';
@@ -10,13 +10,14 @@ import { useTheme } from '../../ui/ThemeContext';
 import { ThemedModal } from '../../ui/components/ThemedModal';
 import { PressableCard } from '../../ui/components/PressableCard';
 import { AccountSavingsList } from './AccountSavingsList';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 export function GoalsScreen({ state, onSaveGoal, onUpdateAccountDisplayOrder }: {
   state: LedgerState;
   onSaveGoal: (draft: GoalDraft) => Promise<void>;
   onUpdateAccountDisplayOrder: (order: string[]) => Promise<void>;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const goal = state.goal;
   const [editing, setEditing] = useState(false);
@@ -116,7 +117,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.background, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.soft, colors.success, colors.surface]);
-}

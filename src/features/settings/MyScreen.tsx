@@ -1,5 +1,5 @@
 import { ThemedModal } from '../../ui/components/ThemedModal';
-import React, { useState , useMemo } from 'react';
+import React, { useState } from 'react';
 import { Alert, AppState, BackHandler, LayoutAnimation, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, UIManager, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +19,7 @@ import { essentialItemsTotal } from './essentialItems';
 import { WorkSettingsSection } from './WorkSettingsSection';
 import { AttendanceCalendar } from '../attendance/AttendanceCalendar';
 import { isDefaultWorkProfile } from './workSettings';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -57,7 +58,7 @@ export function MyScreen({ state, onChangeRiskMode, onUpdateSettings, onUpdateWo
   openModulePanel?: boolean;
   onModulePanelOpened?: () => void;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [page, setPage] = useState<'me' | 'settings' | 'module' | 'attendance'>('me');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ accounts: state.accounts.length === 0, salary: false, attendance: false, reminders: false });
@@ -343,7 +344,7 @@ function formatReconcileDate(value: string): string {
   return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 function Row({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
-  const styles = useStyles(); return <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}  ›</Text></Pressable>; }
+  const styles = useThemedStyles(createStyles); return <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.row, pressed && styles.pressed]}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}  ›</Text></Pressable>; }
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
@@ -362,7 +363,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.soft, colors.success, colors.surface, colors.warning, colors.warningSoft]);
-}

@@ -1,4 +1,5 @@
 import { LedgerState, Transaction } from '../../core/model/finance';
+import { roundMoney } from '../../core/finance/money';
 
 export interface BalanceReconcileEntry {
   accountId: string;
@@ -53,10 +54,6 @@ export function lastBalanceReconciliation(state: LedgerState): BalanceReconcilia
   const batch = adjustments.filter((transaction) => new Date(transaction.occurredAt).getTime() === latestTime);
   const totalAdjustment = batch.reduce((sum, transaction) => sum + (transaction.type === 'income' ? transaction.amount : -transaction.amount), 0);
   return { occurredAt: latest.occurredAt, totalAdjustment: roundMoney(totalAdjustment) };
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
 }
 
 function formatMoney(value: number): string {

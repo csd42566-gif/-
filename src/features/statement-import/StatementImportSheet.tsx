@@ -1,5 +1,5 @@
 import { ThemedModal } from '../../ui/components/ThemedModal';
-import React, { useEffect, useState , useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LedgerState } from '../../core/model/finance';
 import { spacing, radius, ThemeColors } from '../../ui/theme';
@@ -9,6 +9,7 @@ import { ModuleInboxFile, nativeFinance } from '../../integrations/notifications
 import { previewStatement, StatementImportSummary } from './statementImport';
 import { xlsxToStatementText } from './xlsx';
 import { StatementProvider, statementProviderLabels } from './statementTypes';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 interface Props {
   visible: boolean;
@@ -33,7 +34,7 @@ function describeError(error: unknown): string {
 }
 
 export function StatementImportSheet({ visible, state, onClose, onImport, onCreateQuickAccount }: Props) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const [provider, setProvider] = useState<StatementProvider>('alipay');
   const [fileName, setFileName] = useState('');
   const [text, setText] = useState('');
@@ -173,7 +174,7 @@ export function StatementImportSheet({ visible, state, onClose, onImport, onCrea
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   return <View style={styles.row}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}</Text></View>;
 }
 
@@ -218,7 +219,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.success, colors.surface, colors.warning, colors.warningSoft]);
-}

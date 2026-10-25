@@ -1,6 +1,8 @@
 import { LedgerState } from '../model/finance';
+import { formatLocalDateKey } from '../time/dateKey';
 import { EarningsResult } from '../work/attendance';
 import { DerivedFinancials } from './derive';
+import { roundMoney } from './money';
 
 export interface Insight {
   level: 'info' | 'warn' | 'danger';
@@ -28,7 +30,7 @@ export function analyze(state: LedgerState, earnings: EarningsResult, financials
     });
   }
 
-  const monthlyBudget = round(financials.monthSpent + financials.projectedNet);
+  const monthlyBudget = roundMoney(financials.monthSpent + financials.projectedNet);
   if (monthlyBudget > 0 && financials.remainingDays > 1 && financials.monthSpent >= monthlyBudget * 0.75) {
     push({
       level: 'warn',
@@ -70,22 +72,14 @@ function healthyInsight(earnings: EarningsResult, financials: DerivedFinancials)
 
 function todayExpenseTotal(state: LedgerState): number {
   const now = new Date();
-  const today = localDateKey(now);
-  return round(state.transactions
+  const today = formatLocalDateKey(now);
+  return roundMoney(state.transactions
     .filter((transaction) => transaction.type === 'expense')
     .filter((transaction) => !(transaction.category === '余额校准' && transaction.source === 'manual'))
-    .filter((transaction) => localDateKey(new Date(transaction.occurredAt)) === today)
+    .filter((transaction) => formatLocalDateKey(new Date(transaction.occurredAt)) === today)
     .reduce((sum, transaction) => sum + transaction.amount, 0));
 }
 
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
 function money(value: number): string {
-  return round(value).toFixed(2);
-}
-
-function round(value: number): number {
-  return Math.round(value * 100) / 100;
+  return roundMoney(value).toFixed(2);
 }

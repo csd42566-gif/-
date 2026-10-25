@@ -1,4 +1,6 @@
 import { InstallmentPeriod, InstallmentPlan } from '../../core/model/finance';
+import { formatLocalDateKey } from '../../core/time/dateKey';
+import { roundMoney } from '../../core/finance/money';
 
 export type InstallmentType = InstallmentPlan['repaymentType'];
 
@@ -15,9 +17,7 @@ export interface InstallmentDraft {
   periods: InstallmentPeriod[];
 }
 
-function round(value: number): number {
-  return Math.round(value * 100) / 100;
-}
+const round = roundMoney;
 
 function parseMoney(value: string): number {
   const amount = Number(value.replace(/[,\s]/g, ''));
@@ -25,16 +25,12 @@ function parseMoney(value: string): number {
   return round(amount);
 }
 
-function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
 export function addMonths(dateKey: string, months: number): string {
   const [year, month, day] = dateKey.split('-').map(Number);
   const target = new Date(year, month - 1 + months, 1);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
   target.setDate(Math.min(day, lastDay));
-  return toDateKey(target);
+  return formatLocalDateKey(target);
 }
 
 function makePeriods(amounts: number[], firstDueDate: string, principal: number, totalInterest: number): InstallmentPeriod[] {
@@ -149,7 +145,7 @@ export function parseAlipayInstallmentText(text: string, now = new Date()): Inst
   if (principal <= 0 || periodsCount <= 0) throw new Error('installment-data-invalid');
   const draft = createInstallmentDraft({
     debtName, remainingPrincipal: principal, totalInterest: interest, totalPeriods: periodsCount,
-    repaymentType: 'fixed-payment', fixedPayment, firstDueDate: periods[0]?.dueDate ?? toDateKey(now),
+    repaymentType: 'fixed-payment', fixedPayment, firstDueDate: periods[0]?.dueDate ?? formatLocalDateKey(now),
   });
   return periodAmounts.length >= periodsCount
     ? { ...draft, periods: makePeriods(periodAmounts.slice(0, periodsCount), periods[0].dueDate, principal, interest) }

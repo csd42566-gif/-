@@ -1,5 +1,6 @@
 import { Account, Allowance, AttendanceRecord, BillSource, Debt, defaultSettings, EssentialItem, Goal, LedgerState, PendingBillSource, PendingTransaction, Settings, Transaction, WorkProfile } from '../core/model/finance';
 import { normalizeDateKey } from '../core/time/dateKey';
+import { roundMoney } from '../core/finance/money';
 
 export function normalizeLedgerState(value: unknown): LedgerState {
   if (!value || typeof value !== 'object') throw new Error('ledger-state-invalid');
@@ -75,22 +76,18 @@ function normalizeEssentialItems(value: unknown, legacyTotal: unknown): Essentia
       return [{
         id,
         name,
-        amount: typeof raw.amount === 'number' && Number.isFinite(raw.amount) ? roundCurrency(Math.max(0, raw.amount)) : 0,
+        amount: typeof raw.amount === 'number' && Number.isFinite(raw.amount) ? roundMoney(Math.max(0, raw.amount)) : 0,
       }];
     });
   }
   if (typeof legacyTotal === 'number' && Number.isFinite(legacyTotal) && legacyTotal > 0) {
-    return [{ id: 'legacy-other', name: '其他', amount: roundCurrency(legacyTotal) }];
+    return [{ id: 'legacy-other', name: '其他', amount: roundMoney(legacyTotal) }];
   }
   return defaultSettings.essentialItems.map((item) => ({ ...item }));
 }
 
 function essentialItemsTotal(items: EssentialItem[]): number {
-  return roundCurrency(items.reduce((sum, item) => sum + item.amount, 0));
-}
-
-function roundCurrency(value: number): number {
-  return Math.round(value * 100) / 100;
+  return roundMoney(items.reduce((sum, item) => sum + item.amount, 0));
 }
 
 function normalizeMotionLevel(settings: Partial<Settings>): 'super' | 'enhanced' | 'standard' {

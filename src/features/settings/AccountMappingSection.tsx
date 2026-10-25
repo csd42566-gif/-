@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Account, LedgerState, MotionLevel } from '../../core/model/finance';
 import { radius, spacing, ThemeColors } from '../../ui/theme';
 import { useTheme } from '../../ui/ThemeContext';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 export function collectAccountLabels(state: LedgerState): string[] {
   const labels = new Set(Object.keys(state.settings.accountMapping));
@@ -20,7 +21,7 @@ export function AccountMappingSection({ labels, accounts, mapping, motionLevel, 
   motionLevel: MotionLevel;
   onChange: (mapping: Record<string, string>) => void;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const selectedAccountName = useMemo(() => {
     if (!selectedLabel) return '';
@@ -75,7 +76,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.success, colors.surface]);
-}

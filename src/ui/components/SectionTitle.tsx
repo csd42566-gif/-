@@ -1,11 +1,10 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { spacing, ThemeColors } from '../theme';
-import { useTheme } from '../ThemeContext';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 
 export function SectionTitle({ children }: { children: React.ReactNode }) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors.ink]);
+  const styles = useThemedStyles(createStyles);
   return <Text style={styles.title}>{children}</Text>;
 }
 

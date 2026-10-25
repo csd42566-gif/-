@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as SystemUI from 'expo-system-ui';
 import { ActivityIndicator, Animated, AppState, Linking, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, Vibration, View } from 'react-native';
 import { HomeScreen } from '../src/features/home/HomeScreen';
 import { ThemedModal } from '../src/ui/components/ThemedModal';
+import { ChoiceChip } from '../src/ui/components/ChoiceChip';
 import { QPressable } from '../src/ui/components/QPressable';
 import { useKeyboardSheet } from '../src/ui/hooks/useKeyboardSheet';
 import { LedgerScreen } from '../src/features/ledger/LedgerScreen';
@@ -36,6 +37,7 @@ import { clockInAttendance, clockOutAttendance, markAttendanceRest, undoAttendan
 import { estimateWorkCost, evaluateTransaction, PunishmentResult } from '../src/features/ledger/punishment';
 import { buildStatusNotificationPayload, formatStatusNotificationText } from '../src/integrations/notifications/statusService';
 import { BatchReviewResult, reviewPendingBatch as applyPendingBatch } from '../src/features/ledger/batchReview';
+import { useThemedStyles } from '../src/ui/hooks/useThemedStyles';
 
 type Draft = { type: TransactionType; amount: number; accountId: string; toAccountId?: string; category?: string; budgetGroup?: BudgetGroup; note?: string };
 
@@ -46,7 +48,7 @@ export default function Index() {
 
 function LedgerApp({ onThemeModeChange }: { onThemeModeChange: (mode: ThemeMode) => void }) {
   const { colors, mode } = useTheme();
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const [state, setState] = useState<LedgerState | null>(null);
   const [tab, setTab] = useState<Tab>('home');
   const [modulePanelRequested, setModulePanelRequested] = useState(false);
@@ -373,14 +375,14 @@ function LedgerApp({ onThemeModeChange }: { onThemeModeChange: (mode: ThemeMode)
           <View style={styles.grab}/><Text style={styles.sheetTitle}>{impact ? '已保存这笔记录' : '记一笔'}</Text>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetScroll}>
           {!impact ? <>
-            <View style={styles.choices}>{(['expense', 'income', 'transfer'] as TransactionType[]).map((item) => <Chip key={item} selected={type === item} label={{ expense: '支出', income: '收入', transfer: '转账' }[item]} onPress={() => setType(item)} />)}</View>
+            <View style={styles.choices}>{(['expense', 'income', 'transfer'] as TransactionType[]).map((item) => <ChoiceChip key={item} selected={type === item} label={{ expense: '支出', income: '收入', transfer: '转账' }[item]} onPress={() => setType(item)} />)}</View>
             <TextInput autoFocus keyboardType="decimal-pad" value={amount} onChangeText={setAmount} placeholder="金额" accessibilityLabel="金额" placeholderTextColor={colors.muted} style={[styles.amountInput, liveHours > 0 && styles.amountInputDanger]}/>
             {liveHours > 0 && <Text style={styles.liveWarning}>⚠ 这笔等于白干 {liveHours.toFixed(1)} 小时</Text>}
             <Text style={styles.fieldLabel}>{type === 'transfer' ? '转出账户' : '记入账户'}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>{state.accounts.map((account) => <Chip key={account.id} label={`${account.name} · ¥${account.balance.toFixed(0)}`} selected={accountId === account.id} onPress={() => setAccountId(account.id)} />)}</ScrollView>
-            {type === 'transfer' && <><Text style={styles.fieldLabel}>转入账户</Text><View style={styles.choices}>{state.accounts.filter((account) => account.id !== accountId).map((account) => <Chip key={account.id} label={account.name} selected={toAccountId === account.id} onPress={() => setToAccountId(account.id)} />)}</View></>}
-            {type !== 'transfer' && <><Text style={styles.fieldLabel}>分类</Text><View style={styles.choices}>{(type === 'expense' ? ['餐饮', '交通', '购物', '住房', '其他'] : ['工资', '奖金', '报销', '其他']).map((item) => <Chip key={item} label={item} selected={category === item} onPress={() => setCategory(item)} />)}</View></>}
-            {type === 'expense' && <View style={styles.choices}><Chip label="必要支出" selected={budgetGroup === 'essential'} onPress={() => setBudgetGroup('essential')} /><Chip label="弹性消费" selected={budgetGroup === 'flexible'} onPress={() => setBudgetGroup('flexible')} /></View>}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.choices}>{state.accounts.map((account) => <ChoiceChip key={account.id} label={`${account.name} · ¥${account.balance.toFixed(0)}`} selected={accountId === account.id} onPress={() => setAccountId(account.id)} />)}</ScrollView>
+            {type === 'transfer' && <><Text style={styles.fieldLabel}>转入账户</Text><View style={styles.choices}>{state.accounts.filter((account) => account.id !== accountId).map((account) => <ChoiceChip key={account.id} label={account.name} selected={toAccountId === account.id} onPress={() => setToAccountId(account.id)} />)}</View></>}
+            {type !== 'transfer' && <><Text style={styles.fieldLabel}>分类</Text><View style={styles.choices}>{(type === 'expense' ? ['餐饮', '交通', '购物', '住房', '其他'] : ['工资', '奖金', '报销', '其他']).map((item) => <ChoiceChip key={item} label={item} selected={category === item} onPress={() => setCategory(item)} />)}</View></>}
+            {type === 'expense' && <View style={styles.choices}><ChoiceChip label="必要支出" selected={budgetGroup === 'essential'} onPress={() => setBudgetGroup('essential')} /><ChoiceChip label="弹性消费" selected={budgetGroup === 'flexible'} onPress={() => setBudgetGroup('flexible')} /></View>}
             <TextInput value={note} onChangeText={setNote} placeholder="备注（选填）" style={styles.noteInput}/>
             {preview && <View style={styles.preview}>
               {state.settings.reminderMode !== 'normal' && <InfoRow label="记后今日建议可花" value={`¥${preview.dailySpend.toFixed(2)}`} />}
@@ -408,20 +410,12 @@ function LedgerApp({ onThemeModeChange }: { onThemeModeChange: (mode: ThemeMode)
   </View>;
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) {
-  const styles = useStyles();
-  return <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} style={[styles.chip, selected && styles.chipSelected]}><Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text></Pressable>;
-}
 function InfoRow({ label, value }: { label: string; value: string }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   return <View style={styles.infoRow}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value}</Text></View>;
 }
 
 function createStyles(colors: ThemeColors) {
-  return StyleSheet.create({ root:{flex:1,backgroundColor:colors.background},punishmentBlock:{marginTop:14,padding:14,borderRadius: radius.md,borderWidth:1},punishmentSevere:{backgroundColor:colors.dangerSoft,borderColor:colors.danger},punishmentPunish:{backgroundColor:colors.warningSoft,borderColor:colors.warning},punishmentWarn:{backgroundColor:colors.soft,borderColor:colors.line},punishmentTitle:{fontSize:16,fontWeight:'900'},punishmentSevereText:{color:colors.danger},punishmentPunishText:{color:colors.warning},punishmentWarnText:{color:colors.ink},punishmentDetail:{fontSize:12,fontVariant:['tabular-nums'],lineHeight:19,color:colors.ink,marginTop:6},content:{flex:1},loading:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:colors.background},loadingText:{marginTop:10,color:colors.muted,fontSize:12},modalBackdrop:{flex:1,justifyContent:'flex-end',backgroundColor:colors.overlay},dismissArea:{flex:1},sheet:{backgroundColor:colors.surface,borderTopLeftRadius: radius.lg,borderTopRightRadius: radius.lg,padding:spacing.lg,paddingBottom:28},sheetScroll:{paddingBottom:spacing.lg},grab:{width:40,height:4,borderRadius: radius.sm,backgroundColor:colors.line,alignSelf:'center',marginBottom:14},sheetTitle:{fontSize:20,fontWeight:'900',color:colors.ink},choices:{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:10},chip:{minHeight:40,justifyContent:'center',paddingHorizontal:10,borderWidth:1,borderColor:colors.line,borderRadius: radius.sm,backgroundColor:colors.surface},chipSelected:{backgroundColor:colors.accentSoft,borderColor:colors.accent},chipText:{fontSize:11,color:colors.muted,fontVariant:['tabular-nums']},chipTextSelected:{color:colors.ink,fontWeight:'800'},amountInput:{fontSize:32,fontWeight:'900',fontVariant:['tabular-nums'],color:colors.ink,borderBottomWidth:1,borderBottomColor:colors.line,paddingVertical:10,marginTop:12},amountInputDanger:{color:colors.danger,borderBottomColor:colors.danger,backgroundColor:colors.dangerSoft,borderRadius: radius.sm,paddingHorizontal:spacing.sm},liveWarning:{fontSize:12,color:colors.danger,fontWeight:'800',marginTop:8,fontVariant:['tabular-nums']},strictResult:{fontSize:12,color:colors.warning,fontWeight:'800',marginTop:10,fontVariant:['tabular-nums']},fieldLabel:{fontSize:11,color:colors.muted,marginTop:12},noteInput:{height:40,borderBottomWidth:1,borderBottomColor:colors.line,color:colors.ink,marginTop:10},preview:{marginTop:12,borderTopWidth:1,borderTopColor:colors.line},infoRow:{minHeight:38,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderBottomColor:colors.line},infoLabel:{fontSize:11,color:colors.muted},infoValue:{fontSize:12,fontWeight:'800',fontVariant:['tabular-nums'],color:colors.ink},primaryButtonWrap:{width:'100%'},primaryButton:{backgroundColor:colors.accent,borderRadius: radius.sm,minHeight:44,justifyContent:'center',alignItems:'center',marginTop:14},primaryText:{color:colors.surface,fontSize:13,fontWeight:'800'},disabled:{opacity:.45},resultText:{fontSize:14,fontWeight:'700',fontVariant:['tabular-nums'],color:colors.ink,marginTop:14},noteText:{fontSize:11,color:colors.muted,marginTop:10},warningText:{color:colors.danger,fontWeight:'800'},error:{fontSize:11,color:colors.danger,marginTop:8}   });
+  return StyleSheet.create({ root:{flex:1,backgroundColor:colors.background},punishmentBlock:{marginTop:14,padding:14,borderRadius: radius.md,borderWidth:1},punishmentSevere:{backgroundColor:colors.dangerSoft,borderColor:colors.danger},punishmentPunish:{backgroundColor:colors.warningSoft,borderColor:colors.warning},punishmentWarn:{backgroundColor:colors.soft,borderColor:colors.line},punishmentTitle:{fontSize:16,fontWeight:'900'},punishmentSevereText:{color:colors.danger},punishmentPunishText:{color:colors.warning},punishmentWarnText:{color:colors.ink},punishmentDetail:{fontSize:12,fontVariant:['tabular-nums'],lineHeight:19,color:colors.ink,marginTop:6},content:{flex:1},loading:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:colors.background},loadingText:{marginTop:10,color:colors.muted,fontSize:12},modalBackdrop:{flex:1,justifyContent:'flex-end',backgroundColor:colors.overlay},dismissArea:{flex:1},sheet:{backgroundColor:colors.surface,borderTopLeftRadius: radius.lg,borderTopRightRadius: radius.lg,padding:spacing.lg,paddingBottom:28},sheetScroll:{paddingBottom:spacing.lg},grab:{width:40,height:4,borderRadius: radius.sm,backgroundColor:colors.line,alignSelf:'center',marginBottom:14},sheetTitle:{fontSize:20,fontWeight:'900',color:colors.ink},choices:{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:10},amountInput:{fontSize:32,fontWeight:'900',fontVariant:['tabular-nums'],color:colors.ink,borderBottomWidth:1,borderBottomColor:colors.line,paddingVertical:10,marginTop:12},amountInputDanger:{color:colors.danger,borderBottomColor:colors.danger,backgroundColor:colors.dangerSoft,borderRadius: radius.sm,paddingHorizontal:spacing.sm},liveWarning:{fontSize:12,color:colors.danger,fontWeight:'800',marginTop:8,fontVariant:['tabular-nums']},strictResult:{fontSize:12,color:colors.warning,fontWeight:'800',marginTop:10,fontVariant:['tabular-nums']},fieldLabel:{fontSize:11,color:colors.muted,marginTop:12},noteInput:{height:40,borderBottomWidth:1,borderBottomColor:colors.line,color:colors.ink,marginTop:10},preview:{marginTop:12,borderTopWidth:1,borderTopColor:colors.line},infoRow:{minHeight:38,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderBottomColor:colors.line},infoLabel:{fontSize:11,color:colors.muted},infoValue:{fontSize:12,fontWeight:'800',fontVariant:['tabular-nums'],color:colors.ink},primaryButtonWrap:{width:'100%'},primaryButton:{backgroundColor:colors.accent,borderRadius: radius.sm,minHeight:44,justifyContent:'center',alignItems:'center',marginTop:14},primaryText:{color:colors.surface,fontSize:13,fontWeight:'800'},disabled:{opacity:.45},resultText:{fontSize:14,fontWeight:'700',fontVariant:['tabular-nums'],color:colors.ink,marginTop:14},noteText:{fontSize:11,color:colors.muted,marginTop:10},warningText:{color:colors.danger,fontWeight:'800'},error:{fontSize:11,color:colors.danger,marginTop:8}   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.background, colors.surface, colors.ink, colors.muted, colors.line, colors.soft, colors.accent, colors.accentSoft, colors.warning, colors.warningSoft, colors.danger, colors.dangerSoft, colors.success, colors.successSoft, colors.overlay]);
-}

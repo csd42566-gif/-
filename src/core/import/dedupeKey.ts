@@ -1,4 +1,5 @@
 import { LedgerState, PendingTransaction, Transaction, TransactionType } from '../model/finance';
+import { providerLabels } from '../model/providers';
 
 export interface DedupeBillInput {
   provider?: string;
@@ -32,8 +33,8 @@ export function findDuplicateBill(state: LedgerState, candidate: DedupeBillInput
 export function normalizeProvider(provider?: string): string {
   const text = provider?.trim() ?? '';
   const lower = text.toLowerCase();
-  if (text.includes('支付宝') || lower.includes('alipay')) return '支付宝';
-  if (text.includes('微信') || lower.includes('wechat')) return '微信';
+  if (text.includes(providerLabels.alipay) || lower.includes('alipay')) return providerLabels.alipay;
+  if (text.includes(providerLabels.wechat) || lower.includes('wechat')) return providerLabels.wechat;
   return text;
 }
 

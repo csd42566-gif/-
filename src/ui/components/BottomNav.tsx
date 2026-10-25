@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors } from '../theme';
 import { useTheme } from '../ThemeContext';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 
 export type Tab = 'home' | 'ledger' | 'debts' | 'goals' | 'me';
 const items: { key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; selectedIcon: keyof typeof Ionicons.glyphMap }[] = [
@@ -15,7 +16,7 @@ const items: { key: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; se
 ];
 
 export function BottomNav({ active, onChange }: { active: Tab; onChange: (tab: Tab) => void }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return <View style={[styles.bar, { height: 56 + insets.bottom, paddingBottom: insets.bottom }]} accessibilityRole="tablist">{items.map(({ key, label, icon, selectedIcon }) => {
@@ -37,7 +38,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.line, colors.muted, colors.surface]);
-}

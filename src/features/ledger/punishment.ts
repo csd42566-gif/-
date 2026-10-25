@@ -1,5 +1,6 @@
 import { BudgetGroup, TransactionType } from '../../core/model/finance';
 import { DerivedFinancials } from '../../core/finance/derive';
+import { roundMoney } from '../../core/finance/money';
 import { EarningsResult } from '../../core/work/attendance';
 
 export type PunishmentLevel = 'none' | 'warn' | 'punish' | 'severe';
@@ -24,7 +25,7 @@ export function evaluateTransaction(input: {
 }): PunishmentResult {
   const { draft, earnings, financials } = input;
   const hoursRaw = estimateWorkCost(draft.amount, earnings.hourlySalary);
-  const hoursOfWork = round(hoursRaw);
+  const hoursOfWork = roundMoney(hoursRaw);
   const amount = formatAmount(draft.amount);
   const hours = hoursRaw.toFixed(1);
   const expectedMonthlyIncome = Math.max(financials.monthIncome, earnings.monthlySalary);
@@ -64,8 +65,4 @@ export function evaluateTransaction(input: {
 
 function formatAmount(amount: number): string {
   return Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2);
-}
-
-function round(value: number): number {
-  return Math.round(value * 100) / 100;
 }

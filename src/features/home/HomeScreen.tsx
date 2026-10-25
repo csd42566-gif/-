@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState , useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LedgerState, MotionLevel } from '../../core/model/finance';
 import { deriveFinancials } from '../../core/finance/derive';
@@ -8,6 +8,7 @@ import { ATTENDANCE_CLOCK_IN_REQUIRED, findPendingAttendanceRecord, localDateKey
 import { motion, spacing, radius, ThemeColors } from '../../ui/theme';
 import { useTheme } from '../../ui/ThemeContext';
 import { QPressable } from '../../ui/components/QPressable';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 interface HomeScreenProps {
   state: LedgerState;
@@ -23,7 +24,7 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ state, amountAnimationKey, onAdd, onGoSettings, onGoGoals, onGoDebts, onClockIn, onClockOut, onMarkRest, onUndoRest }: HomeScreenProps) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const [attendanceBusy, setAttendanceBusy] = useState(false);
   const [attendanceError, setAttendanceError] = useState('');
   const [attendanceFeedback, setAttendanceFeedback] = useState('');
@@ -221,7 +222,7 @@ function AttendanceButton({ label, subLabel, variant, tone = 'accent', dashed, o
   disabled: boolean;
   motionLevel: MotionLevel;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const scale = useRef(new Animated.Value(1)).current;
   const config = motion.levels[motionLevel];
   const animateIn = () => {
@@ -338,7 +339,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.dangerSoft, colors.ink, colors.line, colors.muted, colors.soft, colors.success, colors.surface, colors.warning, colors.warningSoft]);
-}

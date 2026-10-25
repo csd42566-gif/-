@@ -1,1 +1,0 @@
-export interface BankConnectionPort{getStatus():Promise<'not-configured'|'ready'|'error'>;syncTransactions():Promise<never>}export interface NotificationCapturePort{isAvailable():Promise<boolean>;start():Promise<void>}export interface RootBridgePort{isInstalled():Promise<boolean>;readEvents():Promise<never>}

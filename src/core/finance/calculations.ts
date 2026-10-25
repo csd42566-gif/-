@@ -1,4 +1,6 @@
 import { Debt, Goal, Transaction } from '../model/finance';
+import { formatLocalDateKey } from '../time/dateKey';
+import { roundMoney } from './money';
 
 export interface GoalPlanSnapshot {
   currentBalance: number;
@@ -90,7 +92,7 @@ export function calculateMonthlyBudget(input: MonthlyBudgetInput, now = new Date
   const monthToDateEssentialExpenses = currentMonthTransactions
     .filter((transaction) => transaction.type === 'expense' && transaction.budgetGroup === 'essential')
     .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const monthEndDate = toDateKey(new Date(nextMonthStart.getTime() - 1));
+  const monthEndDate = formatLocalDateKey(new Date(nextMonthStart.getTime() - 1));
   const upcomingRepayments = roundMoney(input.debts
     .filter((debt) => debt.dueDate <= monthEndDate)
     .reduce((sum, debt) => sum + debtPayableAmount(debt), 0));
@@ -123,12 +125,4 @@ export function debtPayableAmount(debt: Debt): number {
 function sumTransactions(transactions: Transaction[], type: 'income' | 'expense'): number {
   return transactions.filter((transaction) => transaction.type === type)
     .reduce((sum, transaction) => sum + transaction.amount, 0);
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

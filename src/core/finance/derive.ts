@@ -1,6 +1,8 @@
 import { LedgerState } from '../model/finance';
+import { formatLocalDateKey } from '../time/dateKey';
 import { calculateEarnings } from '../work/attendance';
 import { calculateGoalPlan, calculateMonthlyBudget, debtPayableAmount } from './calculations';
+import { roundMoney } from './money';
 
 export interface DerivedFinancials {
   availableBalance: number;
@@ -42,7 +44,7 @@ export function deriveFinancials(state: LedgerState, now = new Date()): DerivedF
     workDaysPerMonth: earnings.expectedWorkDays,
     workHoursPerDay: work.workHoursPerDay,
   }, now);
-  const today = toDateKey(now);
+  const today = formatLocalDateKey(now);
   const overdueDue = roundMoney(state.debts
     .filter((debt) => debt.dueDate < today)
     .reduce((sum, debt) => sum + debtPayableAmount(debt), 0));
@@ -78,12 +80,4 @@ function incomeSince(state: LedgerState, startAt: string): number {
     .filter((transaction) => transaction.type === 'income' && transaction.eventKind !== 'refund')
     .filter((transaction) => new Date(transaction.occurredAt).getTime() >= start)
     .reduce((sum, transaction) => sum + transaction.amount, 0));
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

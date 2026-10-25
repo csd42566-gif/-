@@ -7,17 +7,19 @@ import { ThemedModal } from '../../ui/components/ThemedModal';
 import { PressableCard } from '../../ui/components/PressableCard';
 import { ProviderBadge } from '../../ui/components/ProviderBadge';
 import { SectionTitle } from '../../ui/components/SectionTitle';
+import { ChoiceChip } from '../../ui/components/ChoiceChip';
 import { StatementImportSummary } from '../statement-import/statementImport';
 import { StatementImportSheet } from '../statement-import/StatementImportSheet';
 import { StatementProvider } from '../statement-import/statementTypes';
 import { createAccount } from '../accounts/accounts';
 import { batchBlockedReason, batchSelectionState, BatchReviewResult, isBatchablePending, nextBatchSelection, resolvePendingAccountId, selectedBatchSummary } from './batchReview';
+import { manualProviderLabel as manualProvider, providerLabels } from '../../core/model/providers';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 type ReviewAction = 'accept' | 'dismiss';
 type FilterType = 'all' | TransactionType;
 
-const manualProvider = '手动记账';
-const providerOrder = ['支付宝', '微信', '招商银行', '工商银行', '建设银行', '中国银行', '中信银行', '抖音', '得物', '京东', '美团', manualProvider];
+const providerOrder = [providerLabels.alipay, providerLabels.wechat, providerLabels.cmb, providerLabels.icbc, providerLabels.ccb, providerLabels.boc, providerLabels.citic, providerLabels.douyin, providerLabels.dewu, providerLabels.jd, providerLabels.meituan, manualProvider];
 
 export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPending, onImportStatement, onCreateAccount }: {
   state: LedgerState;
@@ -27,7 +29,7 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
   onImportStatement: (provider: StatementProvider, text: string) => Promise<StatementImportSummary>;
   onCreateAccount: (account: Account) => Promise<void>;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [type, setType] = useState<FilterType>('all');
   const [accountId, setAccountId] = useState('all');
@@ -113,19 +115,19 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
 
       <SectionTitle>账单来源</SectionTitle>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.providerFilters}>
-        <Choice label="全部账单" selected={selectedProvider === 'all'} onPress={() => setSelectedProvider('all')} />
-        {providers.map((provider) => <Choice key={provider} label={provider} selected={selectedProvider === provider} onPress={() => setSelectedProvider(provider)} />)}
+        <ChoiceChip label="全部账单" selected={selectedProvider === 'all'} onPress={() => setSelectedProvider('all')} />
+        {providers.map((provider) => <ChoiceChip key={provider} label={provider} selected={selectedProvider === provider} onPress={() => setSelectedProvider(provider)} />)}
       </ScrollView>
 
       <SectionTitle>筛选</SectionTitle>
       <View style={styles.filters}>
-        <Choice label="本月" selected={period === 'month'} onPress={() => setPeriod('month')} />
-        <Choice label="全部月份" selected={period === 'all'} onPress={() => setPeriod('all')} />
-        {(['all', 'expense', 'income', 'transfer'] as FilterType[]).map((item) => <Choice key={item} label={{ all: '全部', expense: '支出', income: '收入', transfer: '转账' }[item]} selected={type === item} onPress={() => setType(item)} />)}
+        <ChoiceChip label="本月" selected={period === 'month'} onPress={() => setPeriod('month')} />
+        <ChoiceChip label="全部月份" selected={period === 'all'} onPress={() => setPeriod('all')} />
+        {(['all', 'expense', 'income', 'transfer'] as FilterType[]).map((item) => <ChoiceChip key={item} label={{ all: '全部', expense: '支出', income: '收入', transfer: '转账' }[item]} selected={type === item} onPress={() => setType(item)} />)}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountFilters}>
-        <Choice label="全部账户" selected={accountId === 'all'} onPress={() => setAccountId('all')} />
-        {state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={accountId === account.id} onPress={() => setAccountId(account.id)} />)}
+        <ChoiceChip label="全部账户" selected={accountId === 'all'} onPress={() => setAccountId('all')} />
+        {state.accounts.map((account) => <ChoiceChip key={account.id} label={account.name} selected={accountId === account.id} onPress={() => setAccountId(account.id)} />)}
       </ScrollView>
 
       <SectionTitle>交易 · {visible.length}</SectionTitle>
@@ -141,10 +143,10 @@ export function LedgerScreen({ state, onAdd, onReviewPending, onBatchConfirmPend
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.sheetTitle}>{editing && isRepayment(editing) ? '核对还款记录' : '核对识别记录'}</Text>
         <Text style={styles.label}>记入账户</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={editAccountId === account.id} onPress={() => { setEditAccountId(account.id); setEditError(''); }} />)}</ScrollView>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.accounts.map((account) => <ChoiceChip key={account.id} label={account.name} selected={editAccountId === account.id} onPress={() => { setEditAccountId(account.id); setEditError(''); }} />)}</ScrollView>
         {!state.accounts.length && <Pressable disabled={creatingEditAccount} onPress={() => { void createEditAccount(); }} accessibilityRole="button" style={[styles.quickAccount, creatingEditAccount && styles.disabled]}><Text style={styles.quickAccountText}>＋ 创建账户</Text></Pressable>}
         {!editAccountValid && <Text style={styles.error}>请先选择账户</Text>}
-        {editing && isRepayment(editing) && <><Text style={styles.label}>对应欠款</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.debts.map((debt) => <Choice key={debt.id} label={debt.name + ' ¥' + debt.amount.toFixed(0)} selected={editDebtId === debt.id} onPress={() => setEditDebtId(debt.id)} />)}</ScrollView>{!state.debts.length && <Text style={styles.noticeText}>还没有欠款记录，先在“欠账”里添加后再确认还款。</Text>}</>}
+        {editing && isRepayment(editing) && <><Text style={styles.label}>对应欠款</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>{state.debts.map((debt) => <ChoiceChip key={debt.id} label={debt.name + ' ¥' + debt.amount.toFixed(0)} selected={editDebtId === debt.id} onPress={() => setEditDebtId(debt.id)} />)}</ScrollView>{!state.debts.length && <Text style={styles.noticeText}>还没有欠款记录，先在“欠账”里添加后再确认还款。</Text>}</>}
         <Text style={styles.label}>金额</Text><TextInput value={editAmount} onChangeText={(value) => { setEditAmount(value); setEditError(''); }} keyboardType="decimal-pad" style={styles.input} />
         <Text style={styles.label}>分类</Text><TextInput value={editCategory} onChangeText={setEditCategory} style={styles.input} />
         {editing?.eventKind === 'proxy-repayment' && <><Text style={styles.label}>代还对象</Text><TextInput value={editCounterparty} onChangeText={setEditCounterparty} placeholder="例如：张三" placeholderTextColor={colors.muted} style={styles.input} /></>}
@@ -163,7 +165,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
   onConfirm: (item: PendingTransaction) => void;
   onCreateQuickAccount: (sourceLabel: string) => Promise<Account>;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchResult, setBatchResult] = useState<BatchReviewResult | null>(null);
@@ -258,7 +260,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
     {!!missingAccountItems.length && <View style={styles.defaultAccountRow}>
       <Text style={styles.defaultAccountLabel}>为 {missingAccountItems.length} 笔未匹配记录指定账户：</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountChoices}>
-        {state.accounts.map((account) => <Choice key={account.id} label={account.name} selected={batchDefaultAccountId === account.id} onPress={() => selectDefaultAccount(account.id)} />)}
+        {state.accounts.map((account) => <ChoiceChip key={account.id} label={account.name} selected={batchDefaultAccountId === account.id} onPress={() => selectDefaultAccount(account.id)} />)}
       </ScrollView>
       {!state.accounts.length && <Pressable disabled={batchBusy} onPress={() => { void createBatchAccount(); }} accessibilityRole="button" style={[styles.quickAccount, batchBusy && styles.disabled]}><Text style={styles.quickAccountText}>还没有账户，先创建一个 ›</Text></Pressable>}
     </View>}
@@ -295,7 +297,7 @@ function PendingReviewSection({ state, onReviewPending, onBatchConfirmPending, o
 }
 
 function BatchCheckbox({ state, disabled }: { state: 'none' | 'partial' | 'all'; disabled: boolean }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   return <View style={[styles.checkbox, state !== 'none' && styles.checkboxChecked, disabled && styles.checkboxDisabled]}>
     <Text style={styles.checkboxGlyph}>{state === 'all' ? '✓' : state === 'partial' ? '−' : ''}</Text>
   </View>;
@@ -307,7 +309,7 @@ function GroupedTransactions({ transactions, accounts, iconStyle, collapsedProvi
   collapsedProviders: string[];
   onToggleProvider: (provider: string) => void;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const groups = providerList(transactions).map((provider) => ({ provider, transactions: transactions.filter((transaction) => providerOf(transaction) === provider) }));
   return <>{groups.map((group) => {
     const collapsed = collapsedProviders.includes(group.provider);
@@ -322,7 +324,7 @@ function GroupedTransactions({ transactions, accounts, iconStyle, collapsedProvi
 }
 
 function TransactionRow({ transaction, accounts, iconStyle }: { transaction: Transaction; accounts: Account[]; iconStyle: ProviderIconStyle }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const account = accounts.find((item) => item.id === transaction.accountId)?.name ?? '账户已移除';
   return <PressableCard style={styles.transaction}>
     <View style={styles.transactionIdentity}>
@@ -333,11 +335,6 @@ function TransactionRow({ transaction, accounts, iconStyle }: { transaction: Tra
       </View>
     </View>
   </PressableCard>;
-}
-
-function Choice({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) {
-  const styles = useStyles();
-  return <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} style={[styles.choice, selected && styles.choiceSelected]}><Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{label}</Text></Pressable>;
 }
 
 function providerOf(transaction: Transaction): string {
@@ -425,10 +422,6 @@ function createStyles(colors: ThemeColors) {
   providerFilters: { gap: 6, paddingVertical: 9 },
   accountFilters: { gap: 6, paddingVertical: 9 },
   accountChoices: { flexDirection: 'row', gap: 6, marginTop: 8, marginBottom: 12 },
-  choice: { minHeight: 40, paddingHorizontal: 10, justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  choiceSelected: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-  choiceText: { fontSize: 11, color: colors.muted },
-  choiceTextSelected: { color: colors.ink, fontWeight: '800' },
   group: { marginBottom: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line },
   groupIdentity: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
@@ -450,7 +443,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.dangerSoft, colors.ink, colors.line, colors.muted, colors.overlay, colors.soft, colors.success, colors.successSoft, colors.surface, colors.warning, colors.warningSoft]);
-}

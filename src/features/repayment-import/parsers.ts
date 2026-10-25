@@ -1,4 +1,5 @@
 import { DetectedEventKind, DetectedEventStatus } from '../../core/model/finance';
+import { providerLabels } from '../../core/model/providers';
 
 export type RepaymentProvider = 'douyin' | 'alipay' | 'wechat' | 'dew' | 'jd' | 'other';
 
@@ -14,11 +15,11 @@ export interface ParsedRepayment {
 }
 
 export const repaymentProviderLabels: Record<RepaymentProvider, string> = {
-  douyin: '抖音',
-  alipay: '支付宝',
-  wechat: '微信',
-  dew: '得物',
-  jd: '京东',
+  douyin: providerLabels.douyin,
+  alipay: providerLabels.alipay,
+  wechat: providerLabels.wechat,
+  dew: providerLabels.dewu,
+  jd: providerLabels.jd,
   other: '其他',
 };
 

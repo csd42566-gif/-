@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState , useMemo } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, radius, ThemeColors } from '../../ui/theme';
@@ -6,6 +6,7 @@ import { useTheme } from '../../ui/ThemeContext';
 import { logger } from '../../core/logging/logger';
 import { nativeFinance } from '../../integrations/notifications/nativeFinance';
 import { DEFAULT_MODULE_CONFIG, MagiskModuleStatus, ModuleFeatureKey } from '../../integrations/magisk/module';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 type ModuleFeature = { key: ModuleFeatureKey; title: string; description: string; available: boolean };
 
@@ -25,7 +26,7 @@ const EMPTY_STATUS: MagiskModuleStatus = {
 };
 
 export function ModuleControlPanel({ onBack }: { onBack: () => void }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [status, setStatus] = useState(EMPTY_STATUS);
   const [loading, setLoading] = useState(true);
@@ -95,7 +96,7 @@ export function ModuleControlPanel({ onBack }: { onBack: () => void }) {
 }
 
 function FeatureRow({ feature, enabled, disabled, onToggle }: { feature: ModuleFeature; enabled: boolean; disabled: boolean; onToggle: (enabled: boolean) => void }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   return <View style={[styles.featureRow, !feature.available && styles.featureUnavailable]}>
     <View style={styles.featureIcon}><Ionicons name={feature.key === 'cloudSync' ? 'cloud-outline' : feature.key === 'rootEnhancement' ? 'shield-checkmark-outline' : feature.key === 'repaymentDetection' ? 'repeat-outline' : feature.key === 'billScan' ? 'folder-open-outline' : 'notifications-outline'} size={18} color={feature.available ? colors.accent : colors.muted} /></View>
@@ -141,7 +142,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.ink, colors.line, colors.muted, colors.soft, colors.success, colors.surface, colors.warning]);
-}

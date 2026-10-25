@@ -1,5 +1,5 @@
 import { ThemedModal } from '../../ui/components/ThemedModal';
-import React, { useState , useMemo } from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LedgerState } from '../../core/model/finance';
 import { calculateEarnings } from '../../core/work/attendance';
@@ -8,6 +8,7 @@ import { useTheme } from '../../ui/ThemeContext';
 import { localDateKey } from './attendance';
 import { buildMonthMatrix } from './calendarGrid';
 import { applyTimeToDateKey, defaultClockInTime, durationHours, formatClockTimeInput, parseClockTimeInput } from './calendarTime';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 export function AttendanceCalendar({ state, onBack, onClockIn, onMarkRest }: {
   state: LedgerState;
@@ -15,7 +16,7 @@ export function AttendanceCalendar({ state, onBack, onClockIn, onMarkRest }: {
   onClockIn: (at: Date) => Promise<void>;
   onMarkRest: (at: Date) => Promise<void>;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
@@ -215,7 +216,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.background, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.soft, colors.surface, colors.warning]);
-}

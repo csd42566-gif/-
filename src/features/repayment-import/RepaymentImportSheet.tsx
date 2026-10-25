@@ -1,4 +1,5 @@
 import { ThemedModal } from '../../ui/components/ThemedModal';
+import { ChoiceChip } from '../../ui/components/ChoiceChip';
 import React, { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PendingTransaction } from '../../core/model/finance';
@@ -7,6 +8,7 @@ import { useTheme } from '../../ui/ThemeContext';
 import { RepaymentProvider } from './parsers';
 import { previewRepaymentText } from './repaymentImport';
 import { createInstallmentDraft, InstallmentDraft, InstallmentType, parseAlipayInstallmentText } from './installments';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 export interface RepaymentImportOutcome {
   duplicate: boolean;
@@ -57,7 +59,7 @@ function previewOf(provider: RepaymentProvider, text: string): { candidate?: Pen
 }
 
 export function RepaymentImportSheet({ visible, onClose, onImport, onImportInstallment }: Props) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [mode, setMode] = useState<'normal' | 'installment'>('normal');
   const [provider, setProvider] = useState<RepaymentProvider>('alipay');
@@ -155,13 +157,13 @@ export function RepaymentImportSheet({ visible, onClose, onImport, onImportInsta
         <View style={styles.grab} />
         <Text style={styles.title}>导入代还</Text>
         <View style={styles.modeChoices}>
-          <Choice label="普通代还" selected={mode === 'normal'} onPress={() => { setMode('normal'); setMessage(''); }} />
-          <Choice label="分期还款" selected={mode === 'installment'} onPress={() => { setMode('installment'); setMessage(''); }} />
+          <ChoiceChip label="普通代还" selected={mode === 'normal'} onPress={() => { setMode('normal'); setMessage(''); }} />
+          <ChoiceChip label="分期还款" selected={mode === 'installment'} onPress={() => { setMode('installment'); setMessage(''); }} />
         </View>
         <ScrollView keyboardShouldPersistTaps="handled">
           <Text style={styles.hint}>{mode === 'installment' ? '粘贴借呗还款计划，或手动填写本金、年利率和期数。生成后只导入本期，未来期数保存在欠款计划里。' : '复制各平台的还款记录或通知文本粘贴到下方。导入后进入待确认，不会直接扣款。'}</Text>
           <View style={styles.choices}>
-            {providerChoices.map((choice) => <Choice key={choice.value} label={choice.label} selected={provider === choice.value} onPress={() => setProvider(choice.value)} />)}
+            {providerChoices.map((choice) => <ChoiceChip key={choice.value} label={choice.label} selected={provider === choice.value} onPress={() => setProvider(choice.value)} />)}
           </View>
           <TextInput
             style={styles.input}
@@ -185,7 +187,7 @@ export function RepaymentImportSheet({ visible, onClose, onImport, onImportInsta
               <Field label="首期还款日" value={firstDueDate} onChangeText={setFirstDueDate} placeholder="YYYY-MM-DD" />
             </View>
             <View style={styles.typeChoices}>
-              {typeChoices.map((choice) => <Choice key={choice.value} label={choice.label} selected={repaymentType === choice.value} onPress={() => setRepaymentType(choice.value)} />)}
+              {typeChoices.map((choice) => <ChoiceChip key={choice.value} label={choice.label} selected={repaymentType === choice.value} onPress={() => setRepaymentType(choice.value)} />)}
             </View>
             <Pressable onPress={generateSchedule} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}><Text style={styles.secondaryText}>重新生成分期表</Text></Pressable>
             {installmentDraft && firstPeriod && <>
@@ -217,19 +219,14 @@ export function RepaymentImportSheet({ visible, onClose, onImport, onImportInsta
   </ThemedModal>;
 }
 
-function Choice({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) {
-  const styles = useStyles();
-  return <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} style={[styles.chip, selected && styles.chipSelected]}><Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text></Pressable>;
-}
-
 function Field({ label, value, onChangeText, keyboardType, placeholder }: { label: string; value: string; onChangeText: (value: string) => void; keyboardType?: 'default' | 'decimal-pad' | 'number-pad'; placeholder?: string }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   return <View style={styles.field}><Text style={styles.fieldLabel}>{label}</Text><TextInput value={value} onChangeText={onChangeText} keyboardType={keyboardType ?? 'default'} placeholder={placeholder} placeholderTextColor={colors.muted} style={styles.fieldInput} /></View>;
 }
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   return <View style={styles.row}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}</Text></View>;
 }
 
@@ -244,10 +241,6 @@ function createStyles(colors: ThemeColors) {
   modeChoices: { flexDirection: 'row', gap: 8, marginTop: 12 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 },
   typeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 },
-  chip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm, backgroundColor: colors.surface },
-  chipSelected: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-  chipText: { fontSize: 12, color: colors.muted },
-  chipTextSelected: { color: colors.ink, fontWeight: '800' },
   input: { minHeight: 100, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: 12, marginTop: 12, color: colors.ink, fontSize: 13 },
   fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
   field: { width: '47%' },
@@ -268,7 +261,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.accentSoft, colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.surface]);
-}

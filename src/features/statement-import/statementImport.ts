@@ -1,6 +1,7 @@
 import { Account, BudgetGroup, LedgerState, PendingTransaction, Transaction } from '../../core/model/finance';
 import { applyImportedTransactions } from '../ledger/ledger';
 import { findDuplicateBill } from '../../core/import/dedupeKey';
+import { roundMoney } from '../../core/finance/money';
 import { parseAlipayStatement, StatementParseResult, StatementRow, StatementRowKind } from './alipayCsv';
 import { parseGenericStatement } from './genericCsv';
 import { isBankProvider, parseBankStatement } from './bankProviders';
@@ -71,10 +72,6 @@ function externalKeyOf(providerKey: string, row: StatementRow): string {
   return `${providerKey}|${row.orderId}|${row.occurredAt}|${row.amount.toFixed(2)}`;
 }
 
-function roundCurrency(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 function describeRow(row: StatementRow): string {
   const identity = row.counterparty && row.counterparty !== '/' ? `${row.counterparty} · ` : '';
   return `${identity}${row.description}`.slice(0, 80);
@@ -138,7 +135,7 @@ function rowDedupeInput(row: StatementRow, providerLabel: string) {
   };
 }
 function summaryOf(rows: StatementRow[], state: LedgerState, providerKey: StatementProvider, skippedClosed: number, skippedZero: number, skippedInvalid: number, duplicateRows: number): StatementImportSummary {
-  const sum = (kind: StatementRowKind) => roundCurrency(rows.filter((row) => row.kind === kind).reduce((total, row) => total + row.amount, 0));
+  const sum = (kind: StatementRowKind) => roundMoney(rows.filter((row) => row.kind === kind).reduce((total, row) => total + row.amount, 0));
   const count = (kind: StatementRowKind) => rows.filter((row) => row.kind === kind).length;
   const transactionIds = new Set(state.transactions.map((transaction) => transaction.id));
   const transactionKeys = new Set(state.transactions.map((transaction) => transaction.externalKey).filter((key): key is string => !!key));

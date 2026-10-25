@@ -6,6 +6,7 @@ import { calculateExistingSavings } from '../accounts/accountSavings';
 import { moveAccountId, orderAccounts } from '../accounts/accountOrder';
 import { motion, radius, spacing, ThemeColors } from '../../ui/theme';
 import { useTheme } from '../../ui/ThemeContext';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 const ROW_HEIGHT = 68;
 
@@ -21,7 +22,7 @@ type Props = {
 };
 
 export function AccountSavingsList({ accounts, savedOrder, motionLevel, onOrderChange }: Props) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const eligibleAccounts = useMemo(() => accounts.filter((account) => account.kind !== 'credit'), [accounts]);
   const orderedAccounts = useMemo(() => orderAccounts(eligibleAccounts, savedOrder), [eligibleAccounts, savedOrder]);
@@ -87,7 +88,7 @@ function DraggableAccountRow({ account, index, count, editing, motionLevel, onMo
   motionLevel: MotionLevel;
   onMove: (draggedId: string, targetIndex: number) => void;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const translateY = useRef(new Animated.Value(0)).current;
   const moveRef = useRef(onMove);
@@ -155,7 +156,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.ink, colors.line, colors.muted, colors.success, colors.successSoft, colors.surface]);
-}

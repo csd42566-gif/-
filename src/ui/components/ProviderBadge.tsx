@@ -1,49 +1,51 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { ProviderIconStyle } from '../../core/model/finance';
+import { manualProviderLabel, providerLabels } from '../../core/model/providers';
 import { providerColors, radius, ThemeColors } from '../theme';
 import { useTheme } from '../ThemeContext';
+import { useThemedStyles } from '../hooks/useThemedStyles';
 
 type FontAwesomeName = React.ComponentProps<typeof FontAwesome5>['name'];
 
 const providerLogos: Record<string, { name: FontAwesomeName; color: string }> = {
-  支付宝: { name: 'alipay', color: providerColors.alipay },
-  微信: { name: 'weixin', color: providerColors.wechat },
-  招商银行: { name: 'university', color: providerColors.cmb },
-  工商银行: { name: 'university', color: providerColors.icbc },
-  建设银行: { name: 'university', color: providerColors.ccb },
-  中国银行: { name: 'university', color: providerColors.boc },
-  中信银行: { name: 'credit-card', color: providerColors.citic },
-  抖音: { name: 'tiktok', color: providerColors.douyin },
-  京东: { name: 'shopping-cart', color: providerColors.jd },
-  得物: { name: 'shopping-bag', color: providerColors.dewu },
-  美团: { name: 'utensils', color: providerColors.meituan },
+  [providerLabels.alipay]: { name: 'alipay', color: providerColors.alipay },
+  [providerLabels.wechat]: { name: 'weixin', color: providerColors.wechat },
+  [providerLabels.cmb]: { name: 'university', color: providerColors.cmb },
+  [providerLabels.icbc]: { name: 'university', color: providerColors.icbc },
+  [providerLabels.ccb]: { name: 'university', color: providerColors.ccb },
+  [providerLabels.boc]: { name: 'university', color: providerColors.boc },
+  [providerLabels.citic]: { name: 'credit-card', color: providerColors.citic },
+  [providerLabels.douyin]: { name: 'tiktok', color: providerColors.douyin },
+  [providerLabels.jd]: { name: 'shopping-cart', color: providerColors.jd },
+  [providerLabels.dewu]: { name: 'shopping-bag', color: providerColors.dewu },
+  [providerLabels.meituan]: { name: 'utensils', color: providerColors.meituan },
 };
 
 const providerBadges: Record<string, { label: string; background: string }> = {
-  支付宝: { label: '支', background: providerColors.alipay },
-  微信: { label: '微', background: providerColors.wechat },
-  招商银行: { label: '招', background: providerColors.cmb },
-  工商银行: { label: '工', background: providerColors.icbc },
-  建设银行: { label: '建', background: providerColors.ccb },
-  中国银行: { label: '中', background: providerColors.boc },
-  中信银行: { label: '信', background: providerColors.citic },
-  抖音: { label: '抖', background: providerColors.douyin },
-  得物: { label: '得', background: providerColors.dewu },
-  京东: { label: '京', background: providerColors.jd },
-  美团: { label: '美', background: providerColors.meituan },
+  [providerLabels.alipay]: { label: '支', background: providerColors.alipay },
+  [providerLabels.wechat]: { label: '微', background: providerColors.wechat },
+  [providerLabels.cmb]: { label: '招', background: providerColors.cmb },
+  [providerLabels.icbc]: { label: '工', background: providerColors.icbc },
+  [providerLabels.ccb]: { label: '建', background: providerColors.ccb },
+  [providerLabels.boc]: { label: '中', background: providerColors.boc },
+  [providerLabels.citic]: { label: '信', background: providerColors.citic },
+  [providerLabels.douyin]: { label: '抖', background: providerColors.douyin },
+  [providerLabels.dewu]: { label: '得', background: providerColors.dewu },
+  [providerLabels.jd]: { label: '京', background: providerColors.jd },
+  [providerLabels.meituan]: { label: '美', background: providerColors.meituan },
 };
 
 export function ProviderBadge({ provider, mode, size = 30 }: { provider: string; mode: ProviderIconStyle; size?: number }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const shape = { width: size, height: size, borderRadius: size >= 40 ? radius.md : radius.sm };
   if (mode === 'logo') {
-    const logo = provider === '手动记账' ? { name: 'edit' as const, color: colors.accent } : providerLogos[provider] ?? { name: 'ellipsis-h' as const, color: colors.muted };
+    const logo = provider === manualProviderLabel ? { name: 'edit' as const, color: colors.accent } : providerLogos[provider] ?? { name: 'ellipsis-h' as const, color: colors.muted };
     return <View style={[styles.logo, shape, { borderColor: logo.color }]}><FontAwesome5 name={logo.name} size={Math.round(size * 0.57)} color={logo.color} /></View>;
   }
-  const badge = provider === '手动记账' ? { label: '记', background: colors.accent } : providerBadges[provider] ?? { label: provider.slice(0, 1) || '账', background: colors.muted };
+  const badge = provider === manualProviderLabel ? { label: '记', background: colors.accent } : providerBadges[provider] ?? { label: provider.slice(0, 1) || '账', background: colors.muted };
   return <View style={[styles.badge, shape, { backgroundColor: badge.background }]}><Text style={[styles.badgeText, { fontSize: Math.round(size * 0.47) }]}>{badge.label}</Text></View>;
 }
 
@@ -55,7 +57,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.accent, colors.muted, colors.surface]);
-}

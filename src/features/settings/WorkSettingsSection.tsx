@@ -1,11 +1,12 @@
 import { ThemedModal } from '../../ui/components/ThemedModal';
-import React, { useState , useMemo } from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MotionLevel, WorkProfile } from '../../core/model/finance';
 import { spacing, radius, ThemeColors } from '../../ui/theme';
 import { useTheme } from '../../ui/ThemeContext';
 import { normalizeDateKey } from '../../core/time/dateKey';
 import { mealAllowanceAmount, probationPeriodEnd, withMealAllowance, withProbationPeriod } from './workSettings';
+import { useThemedStyles } from '../../ui/hooks/useThemedStyles';
 
 type WorkFieldKey =
   | 'monthlyIncome'
@@ -42,7 +43,7 @@ export function WorkSettingsSection({ profile, section, motionLevel, onChange }:
   motionLevel: MotionLevel;
   onChange: (patch: Partial<WorkProfile>) => Promise<void>;
 }) {
-  const styles = useStyles();
+  const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const [activeField, setActiveField] = useState<WorkField | null>(null);
   const [input, setInput] = useState('');
@@ -191,7 +192,3 @@ function createStyles(colors: ThemeColors) {
   });
 }
 
-function useStyles() {
-  const { colors } = useTheme();
-  return useMemo(() => createStyles(colors), [colors.danger, colors.ink, colors.line, colors.muted, colors.overlay, colors.success, colors.surface]);
-}
