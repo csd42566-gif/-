@@ -23,8 +23,8 @@
 
 ## 2. 已拍板决策
 
-- **D1 范围**：v2 1.0 = 底盘替换 + quickAdd 两步流、记账标题联想、统计图表三个增强；订阅周期、历史预算对比、年度报告进 1.1+。
-- **D2 导入规则**：App 内表单生成、以 YAML 条件规则结构存储（deb-sig 格式为基准）；1.0 先内置规则集 + 现有 accountMapping。
+- **D1 范围**：v2 1.0 = 底盘替换 + 五个增强：quickAdd 两步流、记账标题联想、统计图表、**账单搜索**、**周期记账**（第三轮调研后加入，均为低成本刚需）；桌面小组件、订阅管理、历史预算对比、年度报告进 1.1+。
+- **D2 导入规则**：App 内表单生成、以 YAML 条件规则结构存储（deb-sig 格式为基准）；1.0 先内置规则集 + 现有 accountMapping。**规则表预留 AI 兜底接口**（BillParseProvider：OpenAI 兼容 baseUrl/model/key + 可编辑 prompt + 结果进待确认态），仅预留不实现——AutoAccounting/BeeCount 已独立收敛到「规则优先、AI 兜底、人工确认」同构，端侧模型 2026 仍不划算（5-15s + 1-2GB）。
 - **D3 去重**：订单号/externalKey 精确命中 → 静默跳过；模糊命中（归一化键）→ 降级为「疑似重复」进待确认列表，不再静默丢弃。
 - **D4 中性交易**：支付宝「不计收支」等作为第四种 kind `neutral` 存库，默认不入账本、可查询可追溯。
 - **D5 待还 1.0 主方向**：信用卡还款日历（paisa 方向，与现金流预测同源）；订阅/借出借入建模进 1.1。
@@ -34,7 +34,7 @@
 
 | 层 | v1 | v2 | 理由 |
 |---|---|---|---|
-| 框架 | Expo 52 / RN 0.76 | **Expo 54** | 升级到当前 SDK，新架构 JSI |
+| 框架 | Expo 52 / RN 0.76 | **Expo SDK 57 / RN 0.86 / React 19.2** | 2026-10 核实：SDK 58 刚发布，57（2026-06）官方无破坏性变更、4 个月成熟期；54 支持期 2026-09 已结束 |
 | 导航 | tab useState 假路由 | **Expo Router 文件路由** `(tabs)/`+stack | 返回键/deep link/404 白得 |
 | 状态 | 壳层 useState+props 管道 | **Zustand 按 feature 分 store + selectors.ts** | 无 Provider 嵌套，selector 粒度订阅 |
 | 主存储 | AsyncStorage 单键 JSON | **expo-sqlite + drizzle-orm + drizzle-kit** | 官方驱动+迁移工作流+useLiveQuery |
@@ -139,11 +139,33 @@ android/  magisk/             # 保留，Kotlin 按 §5.1 改造
 
 | 风险 | 缓解 |
 |---|---|
-| Expo 52→54 升级破坏原生构建 | android/ 重新 prebuild；升级单独成第一步提交，失败可停在 52 先行开发（Router/Drizzle 均兼容 52+） |
+| Expo 52→57 升级破坏原生构建 | SDK 57 官方无破坏性变更；注意 prebuild 默认 clean（需保留处用 `--no-clean`）；升级单独成第一步提交；失败可停在 52 先行开发（Router/Drizzle 均兼容 52+） |
+| **Android 15+ 通知监听收紧**：untrusted listener 收到 OTP 脱敏内容；Android 16 private space 隔离 | 支付通知一般不含 OTP，但需真机（Android 15/16）实测验证采集通道；神罚侧载 App 可能被判 untrusted——M6 首任务加真机验证关；兜底路径：账单文件导入 + Magisk 扫描不受影响 |
 | MMKV 不支持 Expo Go | v1 已 prebuild（有 android/ 目录），走 dev build，无影响 |
+| SQLCipher 密钥丢失=数据全失 | 备份 zip 内嵌 DB 密钥副本闭环（见 §10）；密钥存 SecureStore（Keystore） |
 | 两腿转账迁移出错 | 迁移器对账校验（笔数+总额+转账配对数），不过不切换 |
 | big-bang 期间 v1 不可用 | feat/v2 分支独立开发，main 保持可用；每日真机装 v1 不受影响 |
 | 规则表执行出错 | 规则解释器纯函数+单测；未命中规则的事件保留在 raw_events 不丢 |
+
+## 10. 安全基线（第三轮调研新增，P0 进 1.0）
+
+| 级别 | 项 | 说明 |
+|---|---|---|
+| P0 | **SQLCipher 加密** | expo-sqlite 官方支持（app.json 插件 `useSQLCipher` + `PRAGMA key`）；开库后 `PRAGMA cipher_version` 自检（未带 SQLCipher 时 PRAGMA key 被静默忽略）；密钥随机生成存 expo-secure-store；同类开源均未做——差异化 |
+| P0 | **allowBackup=false** | 现状 true，adb backup 可提取账本；加 dataExtractionRules 排除 db 与密钥 |
+| P0 | **正式签名** | debug 签名凭据公开，任何人可造同签名 APK 覆盖安装继承数据；keytool 生成 jks → gradle.properties（不进 git）→ signingConfigs.release；jks 离线双备份 |
+| P0 | 备份内嵌 DB 密钥 | 否则换机无法恢复加密库（AES-256 zip + Argon2 派生密码） |
+| P0 | Root 执行器白名单化 | runRootCommand 改参数白名单，禁 shell 字符串拼接 |
+| P1 | 应用锁 + 金额遮蔽 | expo-local-authentication（生物+PIN 回退）；金额遮蔽=全局状态+文本组件，1-2 天 |
+| P1 | 加密备份三件套 | 全量 JSON→gzip→AES zip；CSV 明细导出（对齐支付宝列）；每日自动备份滚动 N 份 |
+| P2 | FLAG_SECURE、Play 上架、证书固定 | 不进 1.0 |
+
+## 11. 第三轮调研补录（2026-10-26）
+
+- **版本核实**：Expo 最新 SDK 58（58.0.19），57 于 2026-06-30 发布无破坏性变更，React Native 0.88、drizzle-orm 0.45.4、zustand 5.0.16、mmkv 4.3.2、gifted-charts 1.4.81——技术栈选型全部维持，仅 SDK 版本修正为 57。
+- **产品对标**（钱迹/一木/鲨鱼/随手记）：神罚缺失 top5 = 账单搜索、周期记账、批量编辑、图片附件、多币种；前两项进 1.0（D1 修订）。债务赛道钱迹已内置（债务+分期+当期应还），神罚差异化在「轻量+额度控制」而非「独有债务功能」——待还页继续强化但叙事调整为「额度控制的时间维度」。
+- **桌面小组件**：react-native-android-widget v0.24 活跃（2026-10 提交）、Expo 57 兼容、config plugin；expo-widgets 官方 Android 残缺不押注。2x2 常用分类网格（静态数据+deep link 直达 quickAdd）进 1.1，3-5 天。
+- **AI 记账**：开源共识「规则优先、AI 兜底、待确认态」；AutoAccounting 纯云端 9 家 Provider（默认 DeepSeek）+ 中文结构化 prompt + Wait2Edit 状态；BeeCount 四档隐私策略（可指自托管端点）；端侧 2026 不划算。v2 仅预留接口（D2 修订），完整实现需 prompt 评测集（BeeCount ai_eval.dart 模式），约 2-4 周，放 backlog。
 
 ## 9. 里程碑
 
