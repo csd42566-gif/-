@@ -51,6 +51,7 @@ import { PressScale } from '../src/ui/pressScale';
 import { PageHead } from '../src/ui/pageHead';
 import { NumberRollText } from '../src/ui/numberRoll';
 import { Sparkline } from '../src/ui/sparkline';
+import { TiltLayer, TiltPanel } from '../src/ui/tiltPanel';
 import { RADIUS, useTheme, type ThemeColors } from '../src/ui/theme';
 
 /** 曲线的统计窗口：一个月。 */
@@ -305,10 +306,12 @@ export default function Index() {
           }
         />
 
-        {/* 主卡：琥珀实色 */}
-        <View
-          style={[styles.hero, theme.heroCard]}
-          onLayout={(e) => {
+        {/* 主卡：深绿实色 + 3D 倾斜光影 + 弹性线网 */}
+        <TiltPanel
+          style={styles.hero}
+          cardStyle={[styles.heroSurface, theme.heroCard]}
+          /* 白高光在深绿卡上最明显；用 0.17 避免过曝成一片白 */
+            onLayout={(e) => {
             // 记下主卡在内容流里的纵向区间，供离屏停帧判断用。
             const { y, height } = e.nativeEvent.layout;
             heroRange.current = { top: y, bottom: y + height };
@@ -358,6 +361,7 @@ export default function Index() {
               color={theme.heroGrid}
             />
           </View>
+          <TiltLayer depth={0.45}>
           <View style={styles.heroTop}>
             {/* 月份选择器：设计稿在主卡顶部第一行，右侧是预算徽章。 */}
             <Pressable
@@ -397,22 +401,26 @@ export default function Index() {
               </View>
             )}
           </View>
+          </TiltLayer>
 
-          <Text style={[styles.heroLabel, { color: theme.heroMuted }]}>总余额</Text>
+          {/* 数字区浮得最高：按压时大数字与卡面之间要拉出距离，这是「内容在实体上面」的核心。 */}
+          <TiltLayer depth={0.85}>
+            <Text style={[styles.heroLabel, { color: theme.heroMuted }]}>总余额</Text>
 
-          <NumberRollText
-            value={formatCurrencyAmount(balanceByCurrency[0][1], balanceByCurrency[0][0])}
-            mode={numberRoll}
-            style={[styles.heroNum, { color: theme.heroText }]}
-          />
-          {balanceByCurrency.slice(1).map(([code, minor]) => (
-            <Text key={code} style={[styles.heroExtra, { color: theme.heroMuted }]}>
-              {formatCurrencyAmount(minor, code)}
-            </Text>
-          ))}
+            <NumberRollText
+              value={formatCurrencyAmount(balanceByCurrency[0][1], balanceByCurrency[0][0])}
+              mode={numberRoll}
+              style={[styles.heroNum, { color: theme.heroText }]}
+            />
+            {balanceByCurrency.slice(1).map(([code, minor]) => (
+              <Text key={code} style={[styles.heroExtra, { color: theme.heroMuted }]}>
+                {formatCurrencyAmount(minor, code)}
+              </Text>
+            ))}
+          </TiltLayer>
 
           {monthlyBudgetCents > 0 && (
-            <>
+            <TiltLayer depth={0.7}>
               <View style={[styles.heroTrack, { backgroundColor: theme.heroTrack }]}>
                 <View
                   style={[
@@ -430,11 +438,12 @@ export default function Index() {
                   of {formatCurrencyAmount(monthlyBudgetCents, DEFAULT_CURRENCY)} 月预算
                 </Text>
               </View>
-            </>
+            </TiltLayer>
           )}
 
           <View style={[styles.heroRule, { backgroundColor: theme.heroLine }]} />
 
+          <TiltLayer depth={0.3}>
           <View style={styles.heroFoot}>
             {/* 设计稿的 mini 行是「标签 + 金额」同一行内联（.mini flex + gap 9px），不是上下两行。 */}
             <View style={styles.heroMetrics}>
@@ -491,7 +500,8 @@ export default function Index() {
               </View>
             </View>
           </View>
-        </View>
+          </TiltLayer>
+        </TiltPanel>
 
         {/* 分类三彩卡：固定三块并排，金额为 0 的大类也占位。 */}
         {topCategories.length > 0 && (
@@ -735,7 +745,8 @@ const styles = StyleSheet.create({
   // 主卡（数值取原型 CSS px × 0.5414 = 411dp 屏的 dp）
   hero: {
     marginTop: 14,
-    borderRadius: RADIUS.hero,
+  },
+  heroSurface: {
     paddingTop: 15,
     paddingHorizontal: 15,
     paddingBottom: 15,

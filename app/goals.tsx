@@ -26,6 +26,7 @@ import { BottomFade } from '../src/ui/bottomFade';
 import { TopFade } from '../src/ui/topFade';
 import { ConfirmDialog } from '../src/ui/dialog';
 import { PageHead } from '../src/ui/pageHead';
+import { TiltLayer, TiltPanel } from '../src/ui/tiltPanel';
 import { PressScale } from '../src/ui/pressScale';
 import { RADIUS, useTheme, type ThemeColors } from '../src/ui/theme';
 
@@ -144,9 +145,15 @@ export default function Goals() {
           </View>
         )}
 
-        {/* 首卡：进度最高的目标 */}
+        {/* 首卡：进度最高的目标 + 3D 倾斜光影。
+            编辑态关闭倾斜：卡片里有 TextInput，输入时手指一直在卡上，倾角会跟着打字乱晃。 */}
         {featured !== null && (
-          <View style={[styles.hero, theme.heroCard]}>
+          <TiltPanel
+            style={styles.hero}
+            cardStyle={[styles.heroSurface, theme.heroCard]}
+                enabled={editing !== featured.id}
+          >
+            <TiltLayer depth={0.45}>
             <View style={styles.heroTop}>
               <Text style={[styles.heroName, { color: theme.heroText }]} numberOfLines={1}>
                 {featured.name}
@@ -157,14 +164,18 @@ export default function Goals() {
                 </Text>
               </View>
             </View>
+            </TiltLayer>
 
-            <Text style={[styles.heroNum, { color: theme.heroText }]} numberOfLines={1}>
-              {formatCurrencyAmount(featured.savedCents, featured.currency)}
-            </Text>
-            <Text style={[styles.heroOf, { color: theme.heroMuted }]} numberOfLines={1}>
-              of {formatCurrencyAmount(featured.targetCents, featured.currency)}
-            </Text>
+            <TiltLayer depth={0.85}>
+              <Text style={[styles.heroNum, { color: theme.heroText }]} numberOfLines={1}>
+                {formatCurrencyAmount(featured.savedCents, featured.currency)}
+              </Text>
+              <Text style={[styles.heroOf, { color: theme.heroMuted }]} numberOfLines={1}>
+                of {formatCurrencyAmount(featured.targetCents, featured.currency)}
+              </Text>
+            </TiltLayer>
 
+            <TiltLayer depth={0.7}>
             <View style={[styles.heroTrack, { backgroundColor: theme.heroTrack }]}>
               <View
                 style={[
@@ -176,6 +187,7 @@ export default function Goals() {
                 ]}
               />
             </View>
+            </TiltLayer>
 
             <View style={styles.heroFoot}>
               <Text style={[styles.heroLeft, { color: theme.heroText }]} numberOfLines={1}>
@@ -202,7 +214,7 @@ export default function Goals() {
                 onCancel={() => setEditing(null)}
               />
             )}
-          </View>
+          </TiltPanel>
         )}
 
         {/* Pocket 参考：首卡下面有一行「Your goals」+ 右侧「+ New goal」胶囊。 */}
@@ -431,7 +443,8 @@ const styles = StyleSheet.create({
   // 首卡
   hero: {
     marginTop: 14.1,
-    borderRadius: RADIUS.hero,
+  },
+  heroSurface: {
     paddingTop: 14.1,
     paddingHorizontal: 15.2,
     paddingBottom: 13,

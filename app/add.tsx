@@ -1,6 +1,9 @@
 /**
- * 记账页（方案 B 定稿）：modal sheet——拖拽把手 + 「记一笔」标题 + 关闭钮，
- * 支出/收入/转账三段、大金额、两级分类宫格、账户 chip、日期/备注字段行，保存钉在底部。
+ * 记账页（方案 B 定稿）：底部面板 form——「记一笔」标题 + 关闭钮，
+ * 支出/收入/转账三段、大金额、两级分类宫格、账户 chip、日期/备注字段行，保存钉在面板底部。
+ *
+ * 面板本体是 src/ui/bottomSheet.tsx：把手可拖、三档吸附（0.52 / 0.78 / 0.93）、
+ * 拉到顶有多余的橡皮筋与纵向拉伸、往下甩出可关闭。本页只负责表单内容。
  *
  * 视觉对应 mockups/pages-add-goals-settings.html 第 1 屏：
  * 白卡字段行、白底 chip、选中态琥珀渐变、金额 76px + ¥ 34px。
@@ -29,7 +32,7 @@ import { useCategoriesStore } from '../src/features/categories/categoriesStore';
 import { useLedgerStore } from '../src/features/ledger/ledgerStore';
 import type { TransactionKind } from '../src/features/ledger/ledgerStore';
 import { useSettingsStore } from '../src/features/settings/settingsStore';
-import { Aurora } from '../src/ui/aurora';
+import { BottomSheet } from '../src/ui/bottomSheet';
 import { Calendar } from '../src/ui/calendar';
 import { CategoryPicker } from '../src/ui/categoryPicker';
 import { PressScale } from '../src/ui/pressScale';
@@ -164,18 +167,20 @@ export default function Add() {
   };
 
   return (
-    <Aurora>
+    <BottomSheet
+      detentHeights={[0.52, 0.78, 0.93]}
+      initialDetent={2}
+      onClose={() => router.back()}
+    >
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 12 }]}
+          contentContainerStyle={[styles.scroll, { paddingTop: 4 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.handle, { backgroundColor: theme.handle }]} />
-
           <View style={styles.head}>
             <Text style={[styles.title, { color: theme.text }]}>
               {kind === 'transfer' ? '转账' : '记一笔'}
@@ -465,7 +470,7 @@ export default function Add() {
       {playing && (
         <RecordSuccessEffect mode={recordSuccessAnimation} onDone={finishAfterEffect} />
       )}
-    </Aurora>
+    </BottomSheet>
   );
 }
 
@@ -473,13 +478,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { paddingHorizontal: 17, paddingBottom: 96 },
 
-  handle: {
-    width: 39,
-    height: 2.7,
-    borderRadius: 1.4,
-    alignSelf: 'center',
-    marginBottom: 11.9,
-  },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 18.4,
     includeFontPadding: false,

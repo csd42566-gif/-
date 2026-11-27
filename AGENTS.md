@@ -13,7 +13,7 @@
 
 - 个人财务 Android App，Expo 58 + React Native 0.88 + TypeScript，包名 `com.strictledger.app`。
 - 产品是**纯粹、好用、好看的记账本**：首页先见账（总余额 + 按天分组的流水），洞察藏在独立统计页。神罚（工时惩罚）整个拿掉。
-- 版本 `2.0.0`，`versionCode 11`。需求文档 `docs/superpowers/specs/2026-11-16-rewrite-requirements.md`（46 项决策），技术决策文档随 M1 落地。
+- 版本 `2.1.0`，`versionCode 12`。需求文档 `docs/superpowers/specs/2026-11-16-rewrite-requirements.md`（46 项决策），技术决策文档随 M1 落地。
 - 分层：`src/core`（纯计算，**不依赖 React**）→ `src/data`（drizzle schema / SQLite 接入）→ `src/features`（zustand store）→ `app`（Expo Router 页面）。
 - **仓库位置是既成事实**：`C:\Users\Administrator\Desktop\shen`。这早于磁盘规范（项目应放 `D:\projects\`）建立，不是新决定。**不要擅自迁移目录**——移动会打断 Android 构建缓存和 Expo 的绝对路径引用，要迁必须单独提出来讨论。
 

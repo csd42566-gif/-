@@ -34,6 +34,7 @@ import { BottomFade } from '../src/ui/bottomFade';
 import { TopFade } from '../src/ui/topFade';
 import { PageHead } from '../src/ui/pageHead';
 import { Sparkline } from '../src/ui/sparkline';
+import { TiltLayer, TiltPanel } from '../src/ui/tiltPanel';
 import { PressScale } from '../src/ui/pressScale';
 import { RADIUS, useTheme } from '../src/ui/theme';
 
@@ -268,8 +269,12 @@ export default function Stats() {
           </View>
         </View>
 
-        {/* 主卡：随分段切换的支出汇总 */}
-        <View style={[styles.hero, theme.heroCard]}>
+        {/* 主卡：随分段切换的支出汇总 + 3D 倾斜光影 */}
+        <TiltPanel
+          style={styles.hero}
+          cardStyle={[styles.heroSurface, theme.heroCard]}
+          >
+          <TiltLayer depth={0.45}>
           <View style={styles.heroTop}>
             <Text style={[styles.heroLabel, { color: theme.heroMuted }]}>{win.label}</Text>
             {momBadge !== null && (
@@ -278,11 +283,15 @@ export default function Stats() {
               </View>
             )}
           </View>
+          </TiltLayer>
 
-          <Text style={[styles.heroNum, { color: theme.heroText }]} numberOfLines={1}>
-            {money(summary.totalCents)}
-          </Text>
+          <TiltLayer depth={0.85}>
+            <Text style={[styles.heroNum, { color: theme.heroText }]} numberOfLines={1}>
+              {money(summary.totalCents)}
+            </Text>
+          </TiltLayer>
 
+          <TiltLayer depth={0.45}>
           <View style={styles.miniRow3}>
             <View style={styles.m3}>
               <Text style={[styles.m3l, { color: theme.heroMuted }]}>日均</Text>
@@ -303,6 +312,7 @@ export default function Stats() {
               </Text>
             </View>
           </View>
+          </TiltLayer>
 
           <View style={[styles.heroRule, { backgroundColor: theme.heroLine }]} />
 
@@ -323,7 +333,7 @@ export default function Stats() {
             <Text style={[styles.axisText, { color: theme.heroMuted }]}>{axisMid}</Text>
             <Text style={[styles.axisText, { color: theme.heroMuted }]}>今天</Text>
           </View>
-        </View>
+        </TiltPanel>
 
         {/* 分类占比 —— Pocket 参考里这一块是小节标题 + 白卡，标题不进卡内。 */}
         <View style={styles.secRow}>
@@ -474,7 +484,8 @@ const styles = StyleSheet.create({
   // 主卡
   hero: {
     marginTop: 14.1,
-    borderRadius: RADIUS.hero,
+  },
+  heroSurface: {
     paddingTop: 17.6,
     paddingHorizontal: 14.1,
     paddingBottom: 15.3,

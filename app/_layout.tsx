@@ -7,8 +7,9 @@
  */
 
 import React from 'react';
-import { useColorScheme } from 'react-native';
+import { StyleSheet, useColorScheme } from 'react-native';
 import { Stack } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import type { StackAnimationTypes } from 'react-native-screens';
@@ -42,32 +43,48 @@ export default function Layout() {
   const palette = useTheme();
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style={statusBarStyleFor(themeMode, systemScheme)} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: TRANSITION_ANIMATION[pageTransition],
-          contentStyle: { backgroundColor: palette.bg },
-        }}
-      >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="add"
-          options={{ headerShown: false, presentation: 'modal' }}
-        />
-        <Stack.Screen name="stats" options={{ headerShown: false }} />
-        <Stack.Screen name="goals" options={{ headerShown: false }} />
-        <Stack.Screen name="search" options={{ headerShown: false }} />
-        <Stack.Screen name="accounts" options={{ headerShown: false }} />
-        <Stack.Screen name="categories" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="transaction/[id]"
-          options={{ headerShown: false, animation: DETAIL_ANIMATION[pageTransition] }}
-        />
-      </Stack>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.flex}>
+      <SafeAreaProvider>
+        <StatusBar style={statusBarStyleFor(themeMode, systemScheme)} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: TRANSITION_ANIMATION[pageTransition],
+            contentStyle: { backgroundColor: palette.bg },
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+          {/*
+            记一笔是一条贴在底部、可以拖着换档的面板（src/ui/bottomSheet.tsx）。
+            所以这屏让出整块背景：透明 + 关掉整页转场，入场完全由面板自己的弹簧负责，
+            否则原生转场和面板弹簧会叠成两层动画。
+          */}
+          <Stack.Screen
+            name="add"
+            options={{
+              headerShown: false,
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          <Stack.Screen name="stats" options={{ headerShown: false }} />
+          <Stack.Screen name="goals" options={{ headerShown: false }} />
+          <Stack.Screen name="search" options={{ headerShown: false }} />
+          <Stack.Screen name="accounts" options={{ headerShown: false }} />
+          <Stack.Screen name="categories" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="transaction/[id]"
+            options={{ headerShown: false, animation: DETAIL_ANIMATION[pageTransition] }}
+          />
+        </Stack>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+});

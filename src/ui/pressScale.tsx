@@ -31,7 +31,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export type PressHaptic = 'none' | 'light' | 'medium' | 'success' | 'warning';
 
 /** 只在这些档位上真的触发；其余（含 disabled）静默跳过。 */
-function fireHaptic(kind: PressHaptic): void {
+export function fireHaptic(kind: PressHaptic): void {
   if (kind === 'none') return;
   /* 触感失败不该影响点击——用户看不到震动时按钮仍然要正常响应。 */
   try {
