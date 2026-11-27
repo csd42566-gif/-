@@ -13,6 +13,9 @@ android/.gradle/
 android/build/
 android/app/build/
 android/app/debug.keystore
+android/keystore.properties
+*.jks
+*.keystore
 *.log
 *.apk
 *.aab
@@ -29,3 +32,10 @@ android-release-launched.png
 expo-env.d.ts
 # @end expo-cli
 assets/icon-drafts/
+
+# feiyu release keystore 与密码文件（勿提交）
+keys/keystore.properties
+keys/feiyu-release.keystore
+
+# 全局规则同步脚本的备份
+AGENTS.md.bak-*

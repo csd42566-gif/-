@@ -1,37 +1,36 @@
 {
   "expo": {
-    "name": "神罚",
-    "slug": "strict-ledger",
-    "version": "0.9.0",
+    "name": "肥鱼的米饭",
+    "slug": "feiyu-ledger",
+    "version": "2.0.0",
     "orientation": "portrait",
-    "scheme": "strictledger",
-    "userInterfaceStyle": "automatic",
+    "scheme": "feiyuledger",
+    "userInterfaceStyle": "dark",
     "plugins": [
       "expo-router",
       "expo-asset",
       "expo-font",
       [
-        "expo-notifications",
+        "expo-sqlite",
         {
-          "color": "#2F4A6D"
+          "useSQLCipher": true
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-sharing",
+      "./plugins/withReleaseBuild"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "android": {
       "package": "com.strictledger.app",
-      "versionCode": 10,
+      "versionCode": 11,
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F3F6FB"
-      },
-      "permissions": [
-        "POST_NOTIFICATIONS",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_DATA_SYNC"
-      ]
+        "backgroundColor": "#121212"
+      }
     },
     "icon": "./assets/icon.png",
     "splash": {

@@ -1,20 +1,20 @@
-# AGENTS.md（项目级 · 神罚 / strict-ledger）
+# AGENTS.md（项目级 · 肥鱼的米饭 / feiyu-ledger）
 
-> 覆盖顺序：本文件 > `~/.codex/AGENTS.md`（全局）> 记忆。
+> 覆盖顺序：本文件 > `~/.agents/AGENTS.md`（全局）> 记忆。**仅限偏好类条款；全局文件头九个词所说的硬约束（授权清单、删除、数据安全）本项目不得覆盖，只能加严。**
 > 全局已写清的（授权清单、代码质量红线、日志、Git 规则）不在这里重复，只做项目相关的收窄或加严。
 
 **必读（其余各节都是这三条的展开）**
 
 1. 每轮改动后跑 `D:\tools\codelog\codelog.cmd check --project .`，收尾补一条 `summary`。外部 agent 靠 `logs/codex-changes.jsonl` 接手上下文，不补等于这轮说不清。
 2. 提交只提建议、不自己执行——`git commit` 在全局 §2 属于「必须先问」，本项目不放宽。
-3. 仓库只有 1 个 commit，0.2.0/0.3.0 的成果全未提交。清欠账之前不要再叠加不相关改动。
+3. 开发在 `feat/v2` 分支进行，`main` 保留 v1（神罚 0.9.0）。神罚旧资产已从 `feat/v2` 删除，不再回看。
 
 ## 1. 项目事实
 
-- 个人财务 Android App，Expo 52 + React Native 0.76 + TypeScript，包名 `com.strictledger.app`。
-- 产品核心不是记账，是**控制可花额度**：首页给今日可花 / 本月需存 / 未来待还，记账后弹预算平衡提醒，目标页反推每日应存。
-- 版本 `0.3.0`，`versionCode 3`。演进文档在 `docs/superpowers/`，plan 与 spec 成对存在。
-- 分层：`src/core`（纯计算，**不依赖 React**）→ `src/data` → `src/features` → `app`（Expo Router 壳）。`src/integrations` 只放端口和 stub，真实现落在 `android/` 原生侧。
+- 个人财务 Android App，Expo 58 + React Native 0.88 + TypeScript，包名 `com.strictledger.app`。
+- 产品是**纯粹、好用、好看的记账本**：首页先见账（总余额 + 按天分组的流水），洞察藏在独立统计页。神罚（工时惩罚）整个拿掉。
+- 版本 `2.0.0`，`versionCode 11`。需求文档 `docs/superpowers/specs/2026-11-16-rewrite-requirements.md`（46 项决策），技术决策文档随 M1 落地。
+- 分层：`src/core`（纯计算，**不依赖 React**）→ `src/data`（drizzle schema / SQLite 接入）→ `src/features`（zustand store）→ `app`（Expo Router 页面）。
 - **仓库位置是既成事实**：`C:\Users\Administrator\Desktop\shen`。这早于磁盘规范（项目应放 `D:\projects\`）建立，不是新决定。**不要擅自迁移目录**——移动会打断 Android 构建缓存和 Expo 的绝对路径引用，要迁必须单独提出来讨论。
 
 ## 2. 留痕与提交
@@ -51,9 +51,9 @@ npx expo export --platform android   # 打包验证，改动涉及原生或入�
 ## 4. 不要破坏的边界
 
 - `src/core` 里不许出现 `react`、`react-native` 的任何 import。它是纯函数层，要能脱离 UI 单测。
-- `src/integrations/ports.ts` 是端口契约。改签名要一次改完所有实现，不留半成品兼容。
+- `src/data/schema.ts` 是表结构单一事实源；`src/data/initSql.ts` 的手写 DDL 必须与之一一对应（不用 drizzle-kit）。
 - `app/index.tsx` 只做壳：状态编排和路由。页面逻辑下沉到 `src/features`，别往壳里堆。
-- 新增领域计算放 `src/core/finance`，配套写 `.test.ts`；新增页面逻辑放对应 feature 目录。
+- 新增领域计算放 `src/core` 对应子目录，配套写 `.test.ts`；新增页面逻辑放对应 feature 目录。
 
 ## 5. 本项目必须先问的额外事项
 
@@ -72,23 +72,14 @@ npx expo export --platform android   # 打包验证，改动涉及原生或入�
 
 ## 7. 版本与发布
 
-- 版本号 `0.x.0` 递增，每次发布 `versionCode` 加 1，`CHANGELOG.md` 必写用户可见的变化。
-- Release APK 目前用项目 debug keystore 签名，**只能测试，不能对外分发**。任何人问起都要说清这一点，不许含糊成"可以发布了"。
-- 正式分发前需要独立发布签名 + 密钥保管方案，这件事尚未做。
+- 版本号 `2.x.0` 递增，每次发布 `versionCode` 加 1，`CHANGELOG.md` 必写用户可见的变化。
+- 正式分发前需要独立发布签名 + 密钥保管方案，这件事尚未做。**签名链已就位**：`keys/feiyu-release.keystore`（RSA 2048、alias feiyu）+ `keys/keystore.properties`（含密码，gitignored）；`plugins/withReleaseBuild.js` config plugin 在 prebuild 时自动落回签名/ABI split/资源收缩/英文 rootProject.name。keystore 与密码只在本机，分发到新机器前需自行备份这两个文件。
 
-## 8. 当前欠账（进来先看一眼）
+## 8. 当前状态（进来先看一眼）
 
-- git 仓库只有 1 个 commit（v0.1.0 时建的），0.2.0 和 0.3.0 的全部成果都是**未提交的工作区改动**。
-- 这意味着：没有版本快照、无法 diff 出两个版本之间的差异、回滚只能靠手。
-- 在这个欠账清掉之前：**不要再往工作区叠加不相关的改动**，每个新改动都要说清它属于哪一块；提交时优先把已有改动按 0.2.0 / 0.3.0 拆开，而不是混在一起。
-
-### 分支策略（对全局 §9 的例外）
-
-全局规定「不在 `main` 上直接开发，改动走 `feat/` `fix/` 分支」。本项目现在与之不符，且**不打算在清欠账之前补上**：
-
-- 当前只有 `main` 一个分支，20+ 个未提交改动全在 `main` 的工作区里。此刻切分支等于把这些改动带着跑，反而更难拆。
-- 因此：**清欠账期间继续在 `main` 上工作**，不要主动建分支。要建分支先说明理由并等我确认（建分支本身也需要授权）。
-- 欠账清掉之后恢复全局规则，新功能走 `feat/`。
+- 开发分支 `feat/v2`；`main` 是 v1（神罚 0.9.0），已封存不迁移数据。
+- v1 的账不迁移到 v2（用户拍板），v2 从零记起。
+- magisk/ 目录保留但不加载，不要顺手删（清理要先问）。
 
 ### 已知缺项
 
